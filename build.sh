@@ -5,6 +5,7 @@ makeAll() {
     mkdir build
   fi
   cd build
+  mkdir logs
   cmake ..
   make
   cd ..

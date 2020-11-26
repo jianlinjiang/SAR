@@ -2,24 +2,6 @@
 
 # Copyright (c) 2020 jianlinjiang
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 cmake_minimum_required(VERSION 2.8.10)
 
 project(SAR C CXX)
@@ -106,13 +88,17 @@ set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CPP_FLAGS} -DNDEBUG -O2 -D__const__= -pip
 set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CXX_FLAGS} -DBRPC_ENABLE_CPU_PROFILER -std=c++11")
 # brpc end
 ############################################################
- 
+
 ############################################################
 # sgx start
 set(CONFIG_PATH srcs)
 set(EDL_SEARCH_PATH srcs/enclave)
 set(E_SRCS srcs/enclave/ra_enclave.cpp)
-set(ULIB_SRCS srcs/ra_service/server.cpp ${PROTO_SRC} )
+set(ULIB_SRCS 
+    srcs/ra_service/ra_service.cpp 
+    srcs/ra_service/server_config.cpp
+    srcs/ra_service/sar_server.cpp
+    ${PROTO_SRC} )
 
 if(SGX_HW AND SGX_MODE STREQUAL "Release")
     set(LDS ${CONFIG_PATH}/enclave.lds)

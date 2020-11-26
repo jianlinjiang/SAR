@@ -238,14 +238,17 @@ if(SGX_FOUND)
     endfunction()
 
     function(add_untrusted_library target mode)
+        # used for c++ json 
+        find_package(nlohmann_json 3.2.0 REQUIRED)
+        # find_package (glog REQUIRED)
         set(optionArgs USE_PREFIX)
         set(multiValueArgs SRCS LIBS FLAGS)
         cmake_parse_arguments("SGX" "${optionArgs}" "" "${multiValueArgs}" ${ARGN})
-
         add_library(${target} ${mode} ${SGX_SRCS})
         set_target_properties(${target} PROPERTIES COMPILE_FLAGS ${SGX_FLAGS})
         target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${APP_INC_DIRS})
-        target_link_libraries(${target} ${SGX_LIBS})
+        target_link_libraries(${target} PRIVATE ${SGX_LIBS} nlohmann_json::nlohmann_json)
+        # nlohmann_json used for c++ json 
     endfunction()
 
     function(add_untrusted_executable target)
