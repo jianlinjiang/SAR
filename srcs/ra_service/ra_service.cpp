@@ -4,6 +4,7 @@
 
 #include <brpc/server.h>
 #include "ra.pb.h"
+#include "ra_message.h"
 namespace ra
 {
   class RaServiceImpl : public RaService
@@ -17,10 +18,20 @@ namespace ra
                    google::protobuf::Closure *done)
     {
       brpc::ClosureGuard done_guard(done);
-      brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
+      
+      const char *messgae = request->message().c_str();
 
       response->set_messgae(request->message());
     }
+  private:
+    bool process_message(const char* messgae) {
+      message_type type = message_type(*(int*)messgae);
+      if (type == CLIENT_CHALLENGE) {
+        // client first challenge messgae
+        
+      }
+    }
   };
+  
 
 } // namespace ra

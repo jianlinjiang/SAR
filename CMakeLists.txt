@@ -91,6 +91,8 @@ set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CXX_FLAGS} -DBRPC_ENABLE_CPU_PROFILER -st
 
 ############################################################
 # sgx start
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs)
+
 set(CONFIG_PATH srcs)
 set(EDL_SEARCH_PATH srcs/enclave)
 set(E_SRCS srcs/enclave/ra_enclave.cpp)
@@ -98,6 +100,9 @@ set(ULIB_SRCS
     srcs/ra_service/ra_service.cpp 
     srcs/ra_service/server_config.cpp
     srcs/ra_service/sar_server.cpp
+    srcs/ra_service/sar_ocall.cpp
+    # srcs/ra_service/ecc_context.cpp
+    # srcs/ra_service/enclave_context.cpp
     ${PROTO_SRC} )
 
 if(SGX_HW AND SGX_MODE STREQUAL "Release")
@@ -114,5 +119,9 @@ enclave_sign(enclave KEY ${CONFIG_PATH}/enclave_test.pem CONFIG ${CONFIG_PATH}/e
 # add untrusted library
 add_untrusted_library(untrusted_lib STATIC SRCS ${ULIB_SRCS} LIBS ${BRPC_LIB} ${DYNAMIC_LIB} FLAGS ${BRPC_CMAKE_CXX_FLAGS})
 
-set(SRCS srcs/main.cpp)
+set(SRCS 
+    srcs/main.cpp 
+    srcs/ra_service/ecc_context.cpp
+    srcs/ra_service/enclave_context.cpp 
+    srcs/ra_service/sar_util.cpp)
 add_untrusted_executable(SAR_SERVER SRCS ${SRCS} EDL ${EDL_SEARCH_PATH}/enclave.edl EDL_SEARCH_PATHS ${EDL_SEARCH_PATH} UTRUST_LIBS untrusted_lib ${GPERFTOOLS_LIBRARIES} FLAGS "-DBRPC_ENABLE_CPU_PROFILER")

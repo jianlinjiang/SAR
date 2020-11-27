@@ -5,9 +5,13 @@
 #include <unistd.h>
 #include <iostream>
 #include <string>
+
 #include "ra_service/ra_service.cpp"
 #include "ra_service/server_config.h"
 #include "ra_service/sar_server.h"
+
+#include "ra_service/enclave_context.h"
+
 using namespace std;
 int main(int argc, char *argv[])
 {
@@ -23,23 +27,26 @@ int main(int argc, char *argv[])
 
   InitLogging(logSetting);
 
-  sar::ServerConfig server_config("config.json");
-  if (!server_config.ParseAndSetConfigs()) {
-    LOG(FATAL) << "parse the config file failed!\n";
-  }
+  // sar::ServerConfig server_config("config.json");
+  // if (!server_config.ParseAndSetConfigs()) {
+  //   LOG(FATAL) << "parse the config file failed!\n";
+  // }
 
-  sar::SarServer sar_server(server_config);
+  // sar::SarServer sar_server(server_config);
 
-  // brpc::Server server;
-  ra::RaServiceImpl ra_service_impl;
+  // // brpc::Server server;
+  // ra::RaServiceImpl ra_service_impl;
 
-  if (!sar_server.AddService(&ra_service_impl)) {
-    LOG(ERROR) << "Failed to add service!\n";
-  }
+  // if (!sar_server.AddService(&ra_service_impl)) {
+  //   LOG(ERROR) << "Failed to add service!\n";
+  // }
 
-  if (!sar_server.Start()) {
-    LOG(ERROR) << "Failed to start sar server!\n";
-  }
+  // if (!sar_server.Start()) {
+  //   LOG(ERROR) << "Failed to start sar server!\n";
+  // }
+
+  sar::EnclaveContext enclave_context;
+
   // if(server.AddService(&ra_service_impl, brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
   //   LOG(ERROR) << "Fail to add service";
   //   return -1;
