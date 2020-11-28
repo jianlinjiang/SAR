@@ -7,6 +7,7 @@ enum message_type {
   CLIENT_CHALLENGE = 0,
   SERVER_CHALLENGE_RESPONSE = 1,
   SERVER_MSG0 = 2,
+  TEST = 3
 };
 
 const static int UUID_LENGTH = 16;
@@ -17,3 +18,5 @@ typedef struct _ra_message_t {
   uint32_t length;
   uint8_t body[];
 } ra_message;
+
+

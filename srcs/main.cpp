@@ -9,7 +9,8 @@
 #include "ra_service/ra_service.cpp"
 #include "ra_service/server_config.h"
 #include "ra_service/sar_server.h"
-
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
 #include "ra_service/enclave_context.h"
 
 using namespace std;
@@ -44,8 +45,15 @@ int main(int argc, char *argv[])
   // if (!sar_server.Start()) {
   //   LOG(ERROR) << "Failed to start sar server!\n";
   // }
-
-  sar::EnclaveContext enclave_context;
+  boost::uuids::random_generator gen;
+  boost::uuids::uuid u = gen();
+  uint8_t p[UUID_LENGTH];
+  memcpy(p, u.data, UUID_LENGTH);
+  for(int i = 0; i < UUID_LENGTH; i++){
+    printf("0x%02x ",p[i]);
+  }
+  printf("\n");
+  // sar::EnclaveContext enclave_context;
 
   // if(server.AddService(&ra_service_impl, brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
   //   LOG(ERROR) << "Fail to add service";

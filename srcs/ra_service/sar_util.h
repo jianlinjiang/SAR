@@ -22,5 +22,5 @@ extern sgx_enclave_id_t global_eid;
 extern const size_t err_length;
 
 const char* get_error_message(sgx_status_t ret);
-
+bool check_arr_is_zero(const uint8_t*, const uint32_t);
 #endif

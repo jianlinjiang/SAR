@@ -30,7 +30,7 @@ message RaRequset{
 };
 
 message RaResponse {
-  string messgae = 1;
+  string message = 1;
 };
 
 service RaService {
