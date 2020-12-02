@@ -17,11 +17,10 @@ include(FindThreads)
 include(FindProtobuf)
 # include PROTO_HEADER
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-find_library(GPERFTOOLS_LIBRARIES NAMES tcmalloc_and_profiler)
-
-include_directories(${GPERFTOOLS_INCLUDE_DIR})
 
 find_path(GPERFTOOLS_INCLUDE_DIR NAMES gperftools/heap-profiler.h)
+find_library(GPERFTOOLS_LIBRARIES NAMES tcmalloc_and_profiler)
+include_directories(${GPERFTOOLS_INCLUDE_DIR})
 
 find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
 if(LINK_SO)
@@ -91,13 +90,22 @@ set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CXX_FLAGS} -DBRPC_ENABLE_CPU_PROFILER -st
 
 ############################################################
 # sgx start
+
+if (SGX_HW)
+    set(EPID_Link_Flags "sgx_epid")
+    set(QUOTE_Link_Flags "sgx_quote_ex") 
+else ()
+    set(EPID_Link_Flags "sgx_epid_sim")
+    set(QUOTE_Link_Flags "sgx_quote_ex_sim") 
+endif ()
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs)
 
 set(CONFIG_PATH srcs)
 set(EDL_SEARCH_PATH srcs/enclave)
 set(E_SRCS srcs/enclave/ra_enclave.cpp)
 set(ULIB_SRCS 
-    srcs/ra_service/ra_service.cpp 
+    # srcs/ra_service/ra_service.cpp 
     srcs/ra_service/server_config.cpp
     srcs/ra_service/sar_server.cpp
     srcs/ra_service/sar_ocall.cpp
@@ -120,8 +128,9 @@ enclave_sign(enclave KEY ${CONFIG_PATH}/enclave_test.pem CONFIG ${CONFIG_PATH}/e
 add_untrusted_library(untrusted_lib STATIC SRCS ${ULIB_SRCS} LIBS ${BRPC_LIB} ${DYNAMIC_LIB} FLAGS ${BRPC_CMAKE_CXX_FLAGS})
 
 set(SRCS 
+    srcs/ra_service/ra_service.cpp
     srcs/main.cpp 
     srcs/ra_service/ecc_context.cpp
     srcs/ra_service/enclave_context.cpp 
     srcs/ra_service/sar_util.cpp)
-add_untrusted_executable(SAR_SERVER SRCS ${SRCS} EDL ${EDL_SEARCH_PATH}/enclave.edl EDL_SEARCH_PATHS ${EDL_SEARCH_PATH} UTRUST_LIBS untrusted_lib ${GPERFTOOLS_LIBRARIES} FLAGS "-DBRPC_ENABLE_CPU_PROFILER")
+add_untrusted_executable(SAR_SERVER SRCS ${SRCS} EDL ${EDL_SEARCH_PATH}/enclave.edl EDL_SEARCH_PATHS ${EDL_SEARCH_PATH} UTRUST_LIBS untrusted_lib "sgx_ukey_exchange" ${EPID_Link_Flags} ${QUOTE_Link_Flags} ${GPERFTOOLS_LIBRARIES} FLAGS "-DBRPC_ENABLE_CPU_PROFILER")

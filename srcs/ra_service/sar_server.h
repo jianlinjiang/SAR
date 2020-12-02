@@ -17,6 +17,7 @@ namespace sar {
     ~SarServer();
 
     bool Start();
+    void Stop();
     bool AddService(google::protobuf::Service *service);
     
   private:

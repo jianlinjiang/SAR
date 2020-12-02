@@ -17,9 +17,9 @@ namespace sar
   public:
     ServerConfig(const string &config_path);
     bool ParseAndSetConfigs();
-    int get_port() const { return port_; }
-    string get_ssl_cert() const { return ssl_cert_; } 
-    string get_ssl_private_key() const { return ssl_private_key_; }
+    int GetPort() const { return port_; }
+    string GetSSLCert() const { return ssl_cert_; } 
+    string GetSSLPrivateKey() const { return ssl_private_key_; }
   private:
     json config_;
     int port_;

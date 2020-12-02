@@ -9,7 +9,7 @@
 #include "sgx_tcrypto.h"
 #include "string.h"
 
-static const sgx_ec256_public_t g_sp_pub_key = {
+static const sgx_ec256_public_t g_pub_key = {
     {0x72, 0x12, 0x8a, 0x7a, 0x17, 0x52, 0x6e, 0xbf,
      0x85, 0xd0, 0x3a, 0x62, 0x37, 0x30, 0xae, 0xad,
      0x3e, 0x3d, 0xaa, 0xee, 0x9c, 0x60, 0x73, 0x1d,
@@ -23,6 +23,7 @@ static const sgx_ec256_public_t g_sp_pub_key = {
 sgx_ecc_state_handle_t g_ecc_handle;
 sgx_ec256_public_t g_sar_server_public_key;
 sgx_ec256_private_t g_sar_server_private_key;
+
 //////////////////////////////////////////////////////////
 
 // This ecall to generate the key pair inside the enclave.
@@ -61,9 +62,13 @@ sgx_status_t ecall_enclave_ecc_shutdown()
 // This ecall is a wrapper of sgx_ra_init to create the trusted
 // KE exchange key context needed for the remote attestation
 // SIGMA API's.
-sgx_status_t ecall_enclave_init_ra(int b_pse, sgx_ra_context_t *p_context)
+sgx_status_t ecall_enclave_ra_init(int b_pse, sgx_ra_context_t *p_context)
 {
   sgx_status_t ret;
-  ret = sgx_ra_init(&g_sp_pub_key, b_pse, p_context);
+  ret = sgx_ra_init(&g_sar_server_public_key, b_pse, p_context);
+  if (ret != SGX_SUCCESS)
+  {
+    LOG(ERROR, __FILE__, __LINE__, "enclave ra context init failed!");
+  }
   return ret;
 }

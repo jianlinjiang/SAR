@@ -7,8 +7,12 @@
 
 #include "sgx_urts.h"
 #include "enclave_u.h"
+#include "sgx_ukey_exchange.h"
+#include "sgx_uae_epid.h"
+#include "sgx_uae_quote_ex.h"
 #include <butil/logging.h>
-
+#include <string>
+#include <map>
 #define TOKEN_FILENAME "enclave.token"
 #define ENCLAVE_FILENAME "enclave.signed.so"
 
@@ -20,7 +24,9 @@ typedef struct _sgx_errlist_t {
 
 extern sgx_enclave_id_t global_eid;
 extern const size_t err_length;
-
+extern uint32_t g_extended_epid_group_id;
+extern sgx_att_key_id_t g_selected_key_id;
+extern std::map<std::string, sgx_ra_context_t> g_client_context_map;
 const char* get_error_message(sgx_status_t ret);
 bool check_arr_is_zero(const uint8_t*, const uint32_t);
 #endif

@@ -28,33 +28,39 @@ int main(int argc, char *argv[])
 
   InitLogging(logSetting);
 
-  // sar::ServerConfig server_config("config.json");
-  // if (!server_config.ParseAndSetConfigs()) {
-  //   LOG(FATAL) << "parse the config file failed!\n";
-  // }
+  sar::EnclaveContext enclave_context;
 
-  // sar::SarServer sar_server(server_config);
-
-  // // brpc::Server server;
-  // ra::RaServiceImpl ra_service_impl;
-
-  // if (!sar_server.AddService(&ra_service_impl)) {
-  //   LOG(ERROR) << "Failed to add service!\n";
-  // }
-
-  // if (!sar_server.Start()) {
-  //   LOG(ERROR) << "Failed to start sar server!\n";
-  // }
-  boost::uuids::random_generator gen;
-  boost::uuids::uuid u = gen();
-  uint8_t p[UUID_LENGTH];
-  memcpy(p, u.data, UUID_LENGTH);
-  for(int i = 0; i < UUID_LENGTH; i++){
-    printf("0x%02x ",p[i]);
+  sar::ServerConfig server_config("config.json");
+  if (!server_config.ParseAndSetConfigs())
+  {
+    LOG(FATAL) << "parse the config file failed!\n";
   }
-  printf("\n");
-  // sar::EnclaveContext enclave_context;
 
+  sar::SarServer sar_server(server_config);
+
+  ra::RaServiceImpl ra_service_impl;
+
+  if (!sar_server.AddService(&ra_service_impl))
+  {
+    LOG(ERROR) << "Failed to add service!\n";
+  }
+
+  if (!sar_server.Start())
+  {
+    LOG(ERROR) << "Failed to start sar server!\n";
+  }
+
+  sar_server.Stop();
+
+  // sgx_status_t ret = sgx_select_att_key_id(NULL, 0, &g_selected_key_id);
+  // if (ret != SGX_SUCCESS)
+  // {
+  //   LOG(ERROR) << "select key id failed" << get_error_message(ret);
+  // }
+  // for (int i = 0; i < 256; i++)
+  // {
+  //   printf("%02x ", g_selected_key_id.att_key_id[i]);
+  // }
   // if(server.AddService(&ra_service_impl, brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
   //   LOG(ERROR) << "Fail to add service";
   //   return -1;

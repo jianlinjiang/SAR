@@ -5,10 +5,10 @@
 #include "sar_server.h"
 
 sar::SarServer::SarServer(const ServerConfig &config) {
-  port_ = config.get_port();
+  port_ = config.GetPort();
 
-  options_.mutable_ssl_options()->default_cert.certificate = config.get_ssl_cert();
-  options_.mutable_ssl_options()->default_cert.private_key = config.get_ssl_private_key();
+  options_.mutable_ssl_options()->default_cert.certificate = config.GetSSLCert();
+  options_.mutable_ssl_options()->default_cert.private_key = config.GetSSLPrivateKey();
 
   options_.idle_timeout_sec = idle_time_out;
   options_.max_concurrency = max_concurrency;
@@ -29,6 +29,11 @@ bool sar::SarServer::Start() {
   return true;
 }
 
-sar::SarServer::~SarServer(){
+void sar::SarServer::Stop() {
   server_.RunUntilAskedToQuit();
 }
+
+sar::SarServer::~SarServer(){
+  // server_.RunUntilAskedToQuit();
+}
+

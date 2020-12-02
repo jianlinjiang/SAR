@@ -11,9 +11,10 @@ enclave {
   include "sgx_trts.h"
 
   trusted {
-    public sgx_status_t ecall_enclave_init_ra(int b_pse, [out] sgx_ra_context_t *p_context);
+    public sgx_status_t ecall_enclave_ra_init(int b_pse, [out] sgx_ra_context_t *p_context);
     public sgx_status_t ecall_enclave_ecc_init();
     public sgx_status_t ecall_enclave_ecc_shutdown();
+    
   };
 
   untrusted {

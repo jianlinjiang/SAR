@@ -34,6 +34,8 @@ endif()
 find_path(SGX_INCLUDE_DIR sgx.h "${SGX_PATH}/include" NO_DEFAULT_PATH)
 find_path(SGX_LIBRARY_DIR libsgx_urts.so "${SGX_LIBRARY_PATH}" NO_DEFAULT_PATH)
 
+message(STATUS ${SGX_LIBRARY_DIR})
+
 if(SGX_INCLUDE_DIR AND SGX_LIBRARY_DIR)
     set(SGX_FOUND "YES")
     set(SGX_INCLUDE_DIR "${SGX_PATH}/include" CACHE PATH "Intel SGX include directory" FORCE)
