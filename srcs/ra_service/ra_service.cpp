@@ -100,13 +100,12 @@ namespace ra
       // generate a response
       uint32_t challenge_rsp_length = sizeof(_ra_challenge_response_t);
       ra_challenge_response *challenge_rsp = (ra_challenge_response*)malloc(challenge_rsp_length);
-      challenge_rsp->status = STATUS_OK;
       challenge_rsp->extended_group_id = g_extended_epid_group_id;
 
       // generate ra message response
       ra_message *reponse_message = (ra_message*) malloc(sizeof(_ra_message_t)+challenge_rsp_length);
       reponse_message->type = SERVER_CHALLENGE_RESPONSE;
-      memcpy(reponse_message, uuid_s.c_str(), UUID_LENGTH);
+      memcpy(reponse_message->uuid, uuid_s.c_str(), UUID_LENGTH);
       reponse_message->length = challenge_rsp_length;
       memcpy(reponse_message->body, (uint8_t*) challenge_rsp, challenge_rsp_length);
       
@@ -118,13 +117,58 @@ namespace ra
       return true;
     }
 
+    static bool process_client_msg2(const char *request_message, RaResponse* response) {
+      ra_message *request_msg = (ra_message*) request_message;
+      std::string uuid_s((const char *) request_msg->uuid, UUID_LENGTH);
+      sgx_ra_msg2_t *msg2 = (sgx_ra_msg2_t*)request_msg->body;
+      // generate msg3 
+      int busy_retry_time = 2;
+      int ret = 0;
+      uint32_t msg3_size = 0;
+      // find the context for the client
+      auto iter = g_client_context_map.find(uuid_s);
+      if (iter == g_client_context_map.end()) {
+        LOG(ERROR) << "can't find client's uuid, unknown client";
+        return false;
+      }
+      sgx_ra_context_t &context = iter->second;
+      sgx_ra_msg3_t *p_msg3 = NULL;
+      do {
+        ret = sgx_ra_proc_msg2_ex(&g_selected_key_id, context, global_eid, sgx_ra_proc_msg2_trusted, sgx_ra_get_msg3_trusted, msg2, request_msg->length, &p_msg3, &msg3_size);
+      } while( ret == SGX_ERROR_BUSY && busy_retry_time--);
+      if (!p_msg3) {
+        LOG(ERROR) << "call sgx_ra_proc_msg2_ex failed ";
+        return false;
+      }
+      if (SGX_SUCCESS != (sgx_status_t)ret){
+        LOG(ERROR) << "call sgx_ra_proc_msg2_ex failed ret :" << ret;
+        LOG(ERROR) << get_error_message((sgx_status_t)ret);
+        return false;
+      } else {
+        LOG(INFO) << "call sgx_ra_proc_msg2_ex success";
+      }
+
+      // send msg 3 to client
+      uint32_t rsp_size = sizeof(_ra_message_t) + msg3_size;
+      ra_message* response_msg = (ra_message*) malloc(rsp_size);
+      response_msg->type = SERVER_MSG3;
+      response_msg->length = msg3_size;
+      memcpy(response_msg->uuid, uuid_s.c_str(), UUID_LENGTH);
+      memcpy(response_msg->body, (const uint8_t*)p_msg3, msg3_size);
+
+      response->set_message((const char*) response_msg, rsp_size);
+
+      if (p_msg3 != NULL) free(p_msg3);
+      free(response_msg);
+      return true;
+    }
+
     static bool process_client_msg0(const char *request_message, RaResponse *response) {
       ra_message *request_msg = (ra_message*) request_message; 
       std::string uuid_s((const char *)request_msg->uuid, UUID_LENGTH);
-      
-      ra_msg0 *msg0 = (ra_msg0*) request_msg->body;
-
-      sgx_status_t ret = sgx_select_att_key_id(msg0->epid_att_key_id_list, msg0->length, &g_selected_key_id);
+  
+      // msg0 is the support key id list 
+      sgx_status_t ret = sgx_select_att_key_id(request_msg->body, request_msg->length, &g_selected_key_id);
       if (ret != SGX_SUCCESS){
         LOG(ERROR) << "select key id failed" << get_error_message(ret);
         return false;
@@ -138,25 +182,25 @@ namespace ra
       }
       sgx_ra_context_t &context = iter->second;
 
-      uint32_t msg1_size = sizeof(_ra_msg1_t);
+      uint32_t msg1_size = sizeof(sgx_ra_msg1_t);
       ra_message* response_msg = (ra_message*) malloc(sizeof(_ra_message_t) + msg1_size);
-
-      ra_msg1 msg1;
-      msg1.status = STATUS_OK;
-
+      
+      sgx_ra_msg1_t msg1;
       ret = SGX_SUCCESS;
       int busy_retry_time = 3;
       // ecall to get msg1 inside enclave
       do 
       {
-        sgx_ra_get_msg1_ex(&g_selected_key_id, context, global_eid, sgx_ra_get_ga, &msg1.msg1_t);
+        sgx_ra_get_msg1_ex(&g_selected_key_id, context, global_eid, sgx_ra_get_ga, &msg1);
       } while(SGX_ERROR_BUSY == ret && busy_retry_time--);
 
       if (ret != SGX_SUCCESS) {
         LOG(ERROR) << "sgx ra get msg1 failed!";
         return false;
       }
+      response_msg->type = SERVER_MSG1;
       response_msg->length = msg1_size;
+      memcpy(response_msg->uuid, uuid_s.c_str(), UUID_LENGTH);
       memcpy(response_msg->body, (const uint8_t*) &msg1, msg1_size);
       
       // set response
@@ -165,7 +209,6 @@ namespace ra
       free(response_msg); 
       return true;
     }
-
   };
 
 } // namespace ra
