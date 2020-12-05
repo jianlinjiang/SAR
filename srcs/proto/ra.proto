@@ -16,5 +16,5 @@ message RaResponse {
 };
 
 service RaService {
-  rpc Ra(RaRequest) returns (RaResponse);
+  rpc RemoteAttestation(RaRequest) returns (RaResponse);
 }

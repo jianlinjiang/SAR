@@ -72,3 +72,17 @@ sgx_status_t ecall_enclave_ra_init(int b_pse, sgx_ra_context_t *p_context)
   }
   return ret;
 }
+
+// This ecall is a wrapper of sgx_ra_close to create the trusted
+// KE exchange key context needed for the remote attestation
+// SIGMA API's.
+sgx_status_t ecall_enclave_ra_close(sgx_ra_context_t* context)
+{
+  sgx_status_t ret;
+  ret = sgx_ra_close(*context);
+  if (ret != SGX_SUCCESS)
+  {
+    LOG(ERROR, __FILE__, __LINE__, "enclave ra context init failed!");
+  }
+  return ret;
+}

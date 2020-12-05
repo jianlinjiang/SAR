@@ -52,32 +52,5 @@ int main(int argc, char *argv[])
 
   sar_server.Stop();
 
-  // sgx_status_t ret = sgx_select_att_key_id(NULL, 0, &g_selected_key_id);
-  // if (ret != SGX_SUCCESS)
-  // {
-  //   LOG(ERROR) << "select key id failed" << get_error_message(ret);
-  // }
-  // for (int i = 0; i < 256; i++)
-  // {
-  //   printf("%02x ", g_selected_key_id.att_key_id[i]);
-  // }
-  // if(server.AddService(&ra_service_impl, brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
-  //   LOG(ERROR) << "Fail to add service";
-  //   return -1;
-  // }
-
-  // brpc::ServerOptions options;
-  // options.mutable_ssl_options()->default_cert.certificate = "cert.pem";
-  // options.mutable_ssl_options()->default_cert.private_key = "key.pem";
-  // // options.idle_timeout_sec = FLAGS_idle_timeout_s;
-  // // options.max_concurrency = FLAGS_max_concurrency;
-  // options.internal_port = -1;
-
-  // if(server.Start(8002, &options) != 0) {
-  //   LOG(ERROR) << "Fail to start SARServer";
-  // }
-
-  // server.RunUntilAskedToQuit();
-
   return 0;
 }

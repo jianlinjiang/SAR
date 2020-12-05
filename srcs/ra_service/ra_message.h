@@ -16,6 +16,8 @@ namespace ra
     SERVER_MSG1 = 3,
     CLIENT_MSG2 = 4,
     SERVER_MSG3 = 5,
+    CLIENT_CLOSE_MSG = 10,
+    SERVER_CLOSE_RESPONSE = 11,
     TEST = 100,
     INTERNAL_ERROR = 101,
   };
