@@ -12,9 +12,10 @@ enclave {
 
   trusted {
     public sgx_status_t ecall_enclave_ra_close([out] sgx_ra_context_t *p_context);
-    public sgx_status_t ecall_enclave_ra_init(int b_pse, [out] sgx_ra_context_t *p_context);
+    public sgx_status_t ecall_enclave_ra_init(int b_pse, [out] sgx_ra_context_t *p_context, [in] sgx_ec256_public_t *p_client_pub);
     public sgx_status_t ecall_enclave_ecc_init();
     public sgx_status_t ecall_enclave_ecc_shutdown();
+    public void print_g_pub_and_pri();
     
   };
 

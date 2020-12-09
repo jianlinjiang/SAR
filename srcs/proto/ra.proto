@@ -8,13 +8,17 @@ option cc_generic_services = true;
 package ra;
 
 message RaRequest{
-  string message = 1;
+  bytes message = 1;
 };
 
 message RaResponse {
-  string message = 1;
+  bytes message = 1;
 };
 
 service RaService {
-  rpc RemoteAttestation(RaRequest) returns (RaResponse);
+  rpc Challenge(RaRequest) returns (RaResponse);
+  rpc Msg0Process(RaRequest) returns (RaResponse);
+  rpc Msg2Process(RaRequest) returns (RaResponse);
+  rpc RemoteAttestationFinish(RaRequest) returns (RaResponse);
+  //rpc Msg4(RaRequest) returns (RaResponse);
 }

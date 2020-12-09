@@ -10,6 +10,7 @@ sgx_enclave_id_t global_eid = 0;
 uint32_t g_extended_epid_group_id = 0;
 sgx_att_key_id_t g_selected_key_id = { 0 };
 std::map<std::string, sgx_ra_context_t> g_client_context_map;
+std::mutex g_context_map_mutex;
 sgx_errlist_t sgx_errlist[] = {
     {SGX_ERROR_UNEXPECTED,
      "Unexpected error occurred.",

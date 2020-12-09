@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
   InitLogging(logSetting);
 
   sar::EnclaveContext enclave_context;
-
+  
   sar::ServerConfig server_config("config.json");
   if (!server_config.ParseAndSetConfigs())
   {

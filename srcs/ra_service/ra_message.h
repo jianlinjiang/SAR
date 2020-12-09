@@ -22,14 +22,7 @@ namespace ra
     INTERNAL_ERROR = 101,
   };
 
-  enum response_status
-  {
-    STATUS_OK = 0,
-    STATUA_ERROR = 1,
-  };
-
-  const static int UUID_LENGTH = 16;
-
+  const static int UUID_LENGTH = 36;
   typedef struct _ra_message_t
   {
     message_type type;
@@ -37,16 +30,10 @@ namespace ra
     uint32_t length;
     uint8_t body[];
   } ra_message;
-
   typedef struct _ra_challenge_response_t
   {
     uint32_t extended_group_id;
   } ra_challenge_response;
-
-  // typedef struct _ra_msg2_t {
-  //   response_status status;
-  //   sgx_ra_msg2_t msg2_t;
-  // } ra_msg2;
 
 } // namespace ra
 

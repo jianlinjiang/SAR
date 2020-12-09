@@ -83,7 +83,7 @@ protobuf_generate_cpp(PROTO_SRC PROTO_HEADER srcs/proto/ra.proto)
 
 # set(BRPC_CMAKE_CPP_FLAGS "-DGFLAGS_NS=${GFLAGS_NS}")
 set(BRPC_CMAKE_CPP_FLAGS "")
-set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CPP_FLAGS} -DNDEBUG -O2 -D__const__= -pipe -W -Wall -Wno-unused-parameter -fPIC -fno-omit-frame-pointer")
+set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CPP_FLAGS} -DDEBUG -O0 -D__const__= -pipe -W -Wall -Wno-unused-parameter -fPIC -fno-omit-frame-pointer")
 set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CXX_FLAGS} -DBRPC_ENABLE_CPU_PROFILER -std=c++11")
 # brpc end
 ############################################################
