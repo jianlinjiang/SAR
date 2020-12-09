@@ -34,6 +34,5 @@ void sar::SarServer::Stop() {
 }
 
 sar::SarServer::~SarServer(){
-  // server_.RunUntilAskedToQuit();
 }
 
