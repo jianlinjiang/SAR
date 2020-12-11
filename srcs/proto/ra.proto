@@ -20,6 +20,4 @@ service RaService {
   rpc Msg0Process(RaRequest) returns (RaResponse);
   rpc Msg2Process(RaRequest) returns (RaResponse);
   rpc Msg4Process(RaRequest) returns (RaResponse);
-  rpc RemoteAttestationFinish(RaRequest) returns (RaResponse);
-  //rpc Msg4(RaRequest) returns (RaResponse);
 }

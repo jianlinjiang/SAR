@@ -208,7 +208,6 @@ namespace ra
         ret = false;
         goto cleanup;
       }
-      LOG(INFO) << "call sgx_ra_proc_msg2 success";
       // send msg 3 to client
       rsp_size = sizeof(_ra_message_t) + msg3_size;
       response_msg = (ra_message *)malloc(rsp_size);
@@ -229,50 +228,7 @@ namespace ra
         free(response_msg);
     }
 
-    virtual void RemoteAttestationFinish(google::protobuf::RpcController *cntl_base, const RaRequest *request, RaResponse *response, google::protobuf::Closure *done)
-    {
-      bool ret = true;
-      brpc::ClosureGuard done_guard(done);
-      brpc::Controller *cntl = static_cast<brpc::Controller *>(cntl_base);
-      // process challenge msg
-      ra_message *request_msg = (ra_message *)request->message().c_str();
-      std::string uuid_s((const char *)request_msg->uuid, UUID_LENGTH);
-      auto iter = g_client_context_map.find(uuid_s);
-      ra_message *response_msg = NULL;
-      sgx_ra_context_t context = INT_MAX;
-      sgx_status_t sgxretval = SGX_SUCCESS;
-      sgx_status_t sgxret = SGX_SUCCESS;
-      if (request_msg->type != CLIENT_CLOSE_MSG)
-      {
-        LOG(ERROR) << "message type doesn't match";
-        ret = false;
-        goto cleanup;
-      }
-      // find the ra context
-      if (iter == g_client_context_map.end())
-      {
-        LOG(ERROR) << "can't find client's uuid, unknown client";
-        ret = false;
-        goto cleanup;
-      }
-      removeRaContext(uuid_s);
-      response_msg = (ra_message *)malloc(sizeof(ra_message));
-      memset(response_msg, 0, sizeof(ra_message));
-      response_msg->type = SERVER_CLOSE_RESPONSE;
-      LOG(INFO) << "client remote attestation context closed";
-      response->set_message((const char *)response_msg, sizeof(ra_message));
-
-    cleanup:
-      if (!ret)
-      {
-        sendErrorMessageToClient(response);
-        removeRaContext(uuid_s);
-      }
-      if (response_msg)
-        free(response_msg);
-    }
-
-    virtual void Msg0Process(google::protobuf::RpcController *cntl_base, const RaRequest *request, RaResponse *response, google::protobuf::Closure *done)
+    virtual void Msg4Process(google::protobuf::RpcController *cntl_base, const RaRequest *request, RaResponse *response, google::protobuf::Closure *done)
     {
       bool ret = true;
       brpc::ClosureGuard done_guard(done);
@@ -282,14 +238,15 @@ namespace ra
       auto iter = g_client_context_map.find(uuid_s);
       ra_message *response_msg = NULL;
       sgx_ra_context_t context = INT_MAX;
-      sgx_status_t sgxretval = SGX_SUCCESS;
       sgx_status_t sgxret = SGX_SUCCESS;
 
       attestation_status_t enclave_trusted = Trusted;
       sgx_update_info_bit_t update_info;
       sgx_platform_info_t emptyPIB;
+
       memset(&emptyPIB, 0, sizeof(sgx_platform_info_t));
-      ra_msg4_t *msg4 = (ra_msg4_t *)(request_msg->body) if (request_msg->type != CLIENT_MSG4)
+      ra_msg4_t *msg4 = (ra_msg4_t *)(request_msg->body);
+      if (request_msg->type != CLIENT_MSG4)
       {
         LOG(ERROR) << "message type doesn't match";
         ret = false;
@@ -307,33 +264,51 @@ namespace ra
       enclave_trusted = msg4->status;
       if (enclave_trusted == Trusted || enclave_trusted == Trusted_ItsComplicated)
       {
-        ret = sgx_report_attestation_status(&msg4->platformInfoBlob,
-                                            enclaveTrusted, &update_info);
+        sgxret = sgx_report_attestation_status(&msg4->platformInfoBlob,
+                                            enclave_trusted, &update_info);
 
         /* Check to see if there is an update needed */
-        if (ret == SGX_ERROR_UPDATE_NEEDED)
+        if (sgxret == SGX_SUCCESS)
         {
-          LOG(INFO) << "The following Platform Update(s) are required to bring this platform's Trusted Computing Base (TCB) back into compliance:" if (update_info.pswUpdate)
+          LOG(INFO) << "enclave trusted";
+        }
+        else if (sgxret == SGX_ERROR_UPDATE_NEEDED)
+        {
+          LOG(INFO) << "The following Platform Update(s) are required to bring this platform's Trusted Computing Base (TCB) back into compliance:";
+          if (update_info.pswUpdate)
           {
-            LOG(ERROR) << "  * Intel SGX Platform Software needs to be updated to the latest version.";
+            LOG(WARNING) << "  * Intel SGX Platform Software needs to be updated to the latest version.";
           }
           if (update_info.csmeFwUpdate)
           {
-          LOG(ERROR) << "  * The Intel Management Engine Firmware Needs to be Updated.  Contact your OEM for a BIOS Update.");
+            LOG(WARNING) << "  * The Intel Management Engine Firmware Needs to be Updated.  Contact your OEM for a BIOS Update.";
           }
           if (update_info.ucodeUpdate)
           {
-          LOG(ERROR) << "  * The CPU Microcode needs to be updated.  Contact your OEM for a platform BIOS Update.");
+            LOG(WARNING) << "  * The CPU Microcode needs to be updated.  Contact your OEM for a platform BIOS Update.";
           }
         }
-
-        
       }
       else
       {
-        LOG(INFO) << "enclave not trusted";
+        LOG(WARNING) << "enclave not trusted";
       }
+      LOG(INFO) << "remote attestation finished";
+      response_msg = (ra_message *)malloc(sizeof(ra_message));
+      memset(response_msg, 0, sizeof(ra_message));
+      response_msg->type = SERVER_MSG5;
+      response->set_message((const char *)response_msg, sizeof(ra_message));
+
+    cleanup:
+      if (!ret)
+      {
+        sendErrorMessageToClient(response);
+        removeRaContext(uuid_s);
+      }
+      if (response)
+        free(response_msg);
     }
+
   private:
     //map message type to process function
     std::map<message_type, process_message_func> func_table_;
