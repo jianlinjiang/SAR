@@ -16,11 +16,27 @@ namespace ra
     SERVER_MSG1 = 3,
     CLIENT_MSG2 = 4,
     SERVER_MSG3 = 5,
+    CLIENT_MSG4,
+    SERVER_MSG5,
     CLIENT_CLOSE_MSG = 10,
     SERVER_CLOSE_RESPONSE = 11,
     TEST = 100,
     INTERNAL_ERROR = 101,
   };
+  
+  typedef enum
+  {
+    NotTrusted = 0,
+    NotTrusted_ItsComplicated,
+    Trusted_ItsComplicated,
+    Trusted
+  } attestation_status_t;
+
+  typedef struct _ra_msg4_struct
+  {
+    attestation_status_t status;
+    sgx_platform_info_t platformInfoBlob;
+  } ra_msg4_t;
 
   const static int UUID_LENGTH = 36;
   typedef struct _ra_message_t
