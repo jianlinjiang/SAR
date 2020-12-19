@@ -13,7 +13,7 @@ import ray
 import gc
 import sys,getopt
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 # 模型参数聚合函数
 # 传入参数是模型数据的列表
 def aggregation_average(model_weights):
@@ -139,7 +139,7 @@ def aggregation_sar(model_weights, n, f, r, k):
         aggregation_weights.append(model_weights[indexs[i]])
     return aggregation_median(aggregation_weights)
 
-ray.init(num_gpus=2)
+ray.init(num_gpus=4)
 
 datagen = ImageDataGenerator(
         # set input mean to 0 over the dataset
@@ -315,7 +315,7 @@ class Network(object):
             datagen.fit(self.dataset[i])
             ## time cost  
             self.model.set_weights(current_weight)
-            history = self.model.fit_generator(datagen.flow(self.dataset[i],self.labels[i],batch_size),
+            history = self.model.fit(datagen.flow(self.dataset[i],self.labels[i],batch_size),
                 epochs=1,verbose=0)
             weights = self.model.get_weights()
             self.weights_list.append(weights)
@@ -339,21 +339,23 @@ class Network(object):
         test_error, test_acc = self.model.evaluate(test_data,test_label,verbose=0)
         return test_error, test_acc
 
-def process_data_to_ray(client_iamges, client_labels, workers):
-  if (len(client_iamges) != len(client_labels)):
+def process_data_to_ray(iamges, labels, workers):
+  if (len(iamges) != len(labels)):
     print("data doesn't match")
     return 
-  each_worker = (int)(len(client_iamges)/workers)
+  each_worker = (int)(len(iamges)/workers)
   ray_images = []
   ray_labels = []
-  for i in range(workers):
-    tmp_images = client_iamges[i*each_worker:(i+1)*each_worker]
-    tmp_labels = client_labels[i*each_worker:(i+1)*each_worker]
+  for i in range(workers-1):
+    tmp_images = iamges[i*each_worker:(i+1)*each_worker]
+    tmp_labels = labels[i*each_worker:(i+1)*each_worker]
     ray_images.append(tmp_images)
     ray_labels.append(tmp_labels)
+  ray_images.append(iamges[(workers-1)*each_worker:len(iamges)])
+  ray_labels.append(labels[(workers-1)*each_worker:len(labels)])
   return ray_images, ray_labels
 
-workers = 4
+workers = 8
 
 client_images = np.load("clients_images_cifar.npy", allow_pickle=True)
 client_labels = np.load("clients_labels_cifar.npy", allow_pickle=True)
@@ -362,7 +364,7 @@ test_images = np.load("test_images_cifar.npy")
 test_labels = np.load("test_labels_cifar.npy")
 
 ray_images, ray_labels = process_data_to_ray(client_images, client_labels, workers)
-
+ray_test_images, ray_test_labels = process_data_to_ray(test_images, test_labels, workers)
 input_shape = client_images[0][0].shape
 depth = 56
 batch_size = 128
@@ -414,7 +416,9 @@ def federate_learning_without_attacker(gf, round, aggregation_method, m, r, k, w
       tmp_weight = aggregation_sar(weights, n, gf, r, k)
     del weights_list
     del weights
-    test_error,test_acc = ray.get(train_actors[0].evaluate.remote(test_images,test_labels,tmp_weight))
+    res = ray.get([train_actors[i].evaluate.remote(ray_test_images[i], ray_test_labels[i], tmp_weight)  for i in range(workers)])
+    # test_error,test_acc = ray.get(train_actors[0].evaluate.remote(test_images,test_labels,tmp_weight))
+    test_error, test_acc = np.mean(res, axis=0)
     print(r, test_error,test_acc)
     model_error_array.append(test_error)
     model_accuracy_array.append(test_acc)
