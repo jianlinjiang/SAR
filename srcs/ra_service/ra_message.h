@@ -6,22 +6,25 @@
 #define RA_MESSAGE_H
 #include <stdint.h>
 #include "sgx_key_exchange.h"
+enum message_type
+{
+  CLIENT_CHALLENGE = 0,
+  SERVER_CHALLENGE_RESPONSE = 1,
+  CLIENT_MSG0 = 2,
+  SERVER_MSG1 = 3,
+  CLIENT_MSG2 = 4,
+  SERVER_MSG3 = 5,
+  CLIENT_MSG4,
+  SERVER_MSG5,
+  CLIENT_TRANSMIT_WEIGHT,
+  SERVER_TRANSMIT_RESPONSE,
+  TEST = 100,
+  INTERNAL_ERROR = 101,
+};
+const static int UUID_LENGTH = 36;
 namespace ra
 {
-  enum message_type
-  {
-    CLIENT_CHALLENGE = 0,
-    SERVER_CHALLENGE_RESPONSE = 1,
-    CLIENT_MSG0 = 2,
-    SERVER_MSG1 = 3,
-    CLIENT_MSG2 = 4,
-    SERVER_MSG3 = 5,
-    CLIENT_MSG4,
-    SERVER_MSG5,
-    TEST = 100,
-    INTERNAL_ERROR = 101,
-  };
-  
+
   typedef enum
   {
     NotTrusted = 0,
@@ -36,7 +39,7 @@ namespace ra
     sgx_platform_info_t platformInfoBlob;
   } ra_msg4_t;
 
-  const static int UUID_LENGTH = 36;
+  
   typedef struct _ra_message_t
   {
     message_type type;

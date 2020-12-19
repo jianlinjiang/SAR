@@ -79,7 +79,7 @@ set(DYNAMIC_LIB
     dl
     )
 # generate protobuf source code
-protobuf_generate_cpp(PROTO_SRC PROTO_HEADER srcs/proto/ra.proto)
+protobuf_generate_cpp(PROTO_SRC PROTO_HEADER srcs/proto/ra.proto srcs/proto/sar.proto)
 
 # set(BRPC_CMAKE_CPP_FLAGS "-DGFLAGS_NS=${GFLAGS_NS}")
 set(BRPC_CMAKE_CPP_FLAGS "")
@@ -129,7 +129,9 @@ add_untrusted_library(untrusted_lib STATIC SRCS ${ULIB_SRCS} LIBS ${BRPC_LIB} ${
 
 set(SRCS 
     srcs/ra_service/ra_service.cpp
-    srcs/main.cpp 
+    srcs/ra_service/sar_service.cpp
+    # srcs/main.cpp 
+    srcs/testdata.cpp
     srcs/ra_service/ecc_context.cpp
     srcs/ra_service/enclave_context.cpp 
     srcs/ra_service/sar_util.cpp)

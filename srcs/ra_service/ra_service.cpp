@@ -48,19 +48,19 @@ namespace ra
         ret = false;
         goto cleanup;
       }
-      // init ra context
-      sgxret = ecall_enclave_ra_init(global_eid, &sgxretval, false, &context, client_pub);
-      if (sgxretval != SGX_SUCCESS)
-      {
-        LOG(ERROR) << "enclave ra init failed";
-        ret = false;
-        goto cleanup;
-      }
       // generate random uuid for the client
       uuid_s = boost::uuids::to_string(u);
       // save the context for later use
       {
         std::unique_lock<std::mutex> lk(g_context_map_mutex);
+        // init ra context
+        sgxret = ecall_enclave_ra_init(global_eid, &sgxretval, false, &context, client_pub);
+        if (sgxretval != SGX_SUCCESS)
+        {
+          LOG(ERROR) << "enclave ra init failed";
+          ret = false;
+          goto cleanup;
+        }
         g_client_context_map.insert(std::make_pair(uuid_s, context));
       }
       sgxret = sgx_get_extended_epid_group_id(&g_extended_epid_group_id);
@@ -104,7 +104,11 @@ namespace ra
       std::string uuid_s((const char *)request_msg->uuid, UUID_LENGTH);
       sgx_status_t sgxret = SGX_SUCCESS;
       sgx_ra_context_t context = INT_MAX;
-      auto iter = g_client_context_map.find(uuid_s);
+      auto iter = g_client_context_map.end();
+      {
+        std::unique_lock<std::mutex> lk(g_context_map_mutex);
+        iter = g_client_context_map.find(uuid_s);
+      }
       uint32_t msg1_size = 0;
       ra_message *response_msg = NULL;
       sgx_ra_msg1_t msg1;
@@ -175,7 +179,11 @@ namespace ra
       sgx_ra_msg3_t *p_msg3 = NULL; // for sgx ra msg3
       uint32_t rsp_size = 0;
       ra_message *response_msg = NULL;
-      auto iter = g_client_context_map.find(uuid_s);
+      auto iter = g_client_context_map.end();
+      {
+        std::unique_lock<std::mutex> lk(g_context_map_mutex);
+        iter = g_client_context_map.find(uuid_s);
+      }
       if (request_msg->type != CLIENT_MSG2)
       {
         LOG(ERROR) << "request msg type is not client msg2";
@@ -235,7 +243,11 @@ namespace ra
       brpc::Controller *cntl = static_cast<brpc::Controller *>(cntl_base);
       ra_message *request_msg = (ra_message *)request->message().c_str();
       std::string uuid_s((const char *)request_msg->uuid, UUID_LENGTH);
-      auto iter = g_client_context_map.find(uuid_s);
+      auto iter = g_client_context_map.end();
+      {
+        std::unique_lock<std::mutex> lk(g_context_map_mutex);
+        iter = g_client_context_map.find(uuid_s);
+      }
       ra_message *response_msg = NULL;
       sgx_ra_context_t context = INT_MAX;
       sgx_status_t sgxret = SGX_SUCCESS;
@@ -265,7 +277,7 @@ namespace ra
       if (enclave_trusted == Trusted || enclave_trusted == Trusted_ItsComplicated)
       {
         sgxret = sgx_report_attestation_status(&msg4->platformInfoBlob,
-                                            enclave_trusted, &update_info);
+                                               enclave_trusted, &update_info);
 
         /* Check to see if there is an update needed */
         if (sgxret == SGX_SUCCESS)

@@ -1,7 +1,7 @@
 // MIT License
 
 // Copyright (c) 2020 jianlinjiang
-
+#include <atomic>
 #include "sgx_urts.h"
 #include "enclave_u.h"
 #include "sar_util.h"
@@ -11,6 +11,10 @@ uint32_t g_extended_epid_group_id = 0;
 sgx_att_key_id_t g_selected_key_id = { 0 };
 std::map<std::string, sgx_ra_context_t> g_client_context_map;
 std::mutex g_context_map_mutex;
+// use the index as the directory name
+std::map<std::string, int> g_client_directory_map;  
+std::atomic<int> client_index(0);
+std::map<std::string, int> g_client_file_map;
 sgx_errlist_t sgx_errlist[] = {
     {SGX_ERROR_UNEXPECTED,
      "Unexpected error occurred.",
