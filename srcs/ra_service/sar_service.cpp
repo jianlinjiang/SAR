@@ -83,7 +83,8 @@ namespace sar
           ret = false;
           goto cleanup;
         }
-        {
+        if (request_msg->length == TRANSMIT_SIZE) {  
+          // file size is smaller than transmit_size, the file is transmit in one time
           std::unique_lock<std::mutex> lk(g_context_map_mutex);
           g_client_file_map.insert(std::make_pair(filename, fd));
         }
@@ -100,12 +101,15 @@ namespace sar
         LOG(ERROR) << "write weights to file failed";
         goto cleanup;
       }
-
-      if (request_msg->flag == END)
+      if (request_msg->flag == END || request_msg->length < TRANSMIT_SIZE)
       {
         if (close(fd) != 0) {
           ret = false;
           LOG(ERROR) << "close file failed";
+        } 
+        if (request_msg->flag == END) {
+          g_client_file_map.erase(fd);
+          fd = -1;
         } 
       }
       response_msg.type = SERVER_TRANSMIT_RESPONSE;
@@ -114,6 +118,12 @@ namespace sar
       if (!ret)
       {
         transmitError(response);
+        if (fd != -1) {
+          close(fd);
+          if (g_client_context_map.find(fd) != g_client_context_map.end()) {
+            g_client_file_map.erase(fd);
+          }  
+        }
       }
     }
   };

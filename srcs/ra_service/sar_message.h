@@ -8,6 +8,7 @@
 #include "ra_message.h"
 namespace sar
 {
+  const size_t TRANSMIT_SIZE = 8192 * 4;
   enum file_flag {
     START = 0,
     MIDDLE = 1,
