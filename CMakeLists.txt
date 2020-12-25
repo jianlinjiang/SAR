@@ -130,8 +130,7 @@ add_untrusted_library(untrusted_lib STATIC SRCS ${ULIB_SRCS} LIBS ${BRPC_LIB} ${
 set(SRCS 
     srcs/ra_service/ra_service.cpp
     srcs/ra_service/sar_service.cpp
-    # srcs/main.cpp 
-    srcs/testdata.cpp
+    srcs/main.cpp 
     srcs/ra_service/ecc_context.cpp
     srcs/ra_service/enclave_context.cpp 
     srcs/ra_service/sar_util.cpp)

@@ -6,7 +6,8 @@
 #include <iostream>
 #include <string>
 
-#include "ra_service/ra_service.cpp"
+#include "ra_service/ra_service.h"
+#include "ra_service/sar_service.h"
 #include "ra_service/server_config.h"
 #include "ra_service/sar_server.h"
 #include <boost/uuid/uuid.hpp>
@@ -39,10 +40,16 @@ int main(int argc, char *argv[])
   sar::SarServer sar_server(server_config);
 
   ra::RaServiceImpl ra_service_impl;
-
+  sar::SarServiceImpl sar_service_impl;
   if (!sar_server.AddService(&ra_service_impl))
   {
     LOG(ERROR) << "Failed to add service!\n";
+    return 0;
+  }
+  if (!sar_server.AddService(&sar_service_impl))
+  {
+    LOG(ERROR) << "Failed to add service!\n";
+    return 0;
   }
 
   if (!sar_server.Start())

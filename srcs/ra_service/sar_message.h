@@ -21,7 +21,7 @@ namespace sar
     uint8_t uuid[UUID_LENGTH];
     uint32_t layer_num; // layer index for each weight
     uint32_t length;
-    uint8_t align[4]; 
+    uint8_t tag[16]; 
     uint8_t body[];
   } transmit_message;
   typedef struct _transmit_response_t {

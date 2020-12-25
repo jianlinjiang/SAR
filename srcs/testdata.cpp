@@ -32,7 +32,7 @@ int main()
   memset(arr, 0, sizeof(arr));
   ifstream weights_file;
   int layer_num = 8;
-  string filename = "mnist_layers/mnist:";
+  string filename = "mnist_layers/";
   float data[8192]; //32k 大小的数组
   memset(data, 0, sizeof(data));
   for (int i = 0; i < layer_num; i++)
