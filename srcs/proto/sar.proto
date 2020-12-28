@@ -15,6 +15,23 @@ message SarResponse {
   bytes message = 1;
 };
 
+message loadWeightsRequest {
+  int32 layers_num = 1;
+  int32 clients_num = 2;
+}
+
+message StartAggregationRequest {
+  string mehtod = 1;
+  int32 layers_num = 2;
+  int32 clients_num = 3;
+};
+
+message Response {
+  int32 flag = 1; //use the flag to denote the result 1 success, 0 failed
+};
+
 service SarService {
   rpc transmitWeights(SarRequest) returns (SarResponse);
+  rpc startAggregation(StartAggregationRequest) returns (SarResponse);
+  rpc loadWeights(loadWeightsRequest) returns (SarResponse);
 }

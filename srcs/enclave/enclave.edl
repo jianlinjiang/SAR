@@ -9,7 +9,6 @@ enclave {
 
   include "sgx_key_exchange.h"
   include "sgx_trts.h"
-
   trusted {
     public sgx_status_t ecall_enclave_ra_close([out] sgx_ra_context_t *p_context);
     public sgx_status_t ecall_enclave_ra_init(int b_pse, [out] sgx_ra_context_t *p_context, [in] sgx_ec256_public_t *p_client_pub);
@@ -17,6 +16,13 @@ enclave {
     public sgx_status_t ecall_enclave_ecc_shutdown();
     public void print_g_pub_and_pri();
     
+    public sgx_status_t ecall_create_weights_load_context([in, size = context_size] sgx_ra_context_t *context_arr, [in, size = context_size] int *index_arr, size_t context_size);
+
+    public sgx_status_t ecall_load_weights([in, size = length] unsigned char* p_ciphertext, unsigned int length, [in, size = 16]unsigned char* p_tag, int client_index);
+
+    public void ecall_aggregation(int layer_index, char aggregation_method, [in, size = size] void* arguments, size_t size);
+
+    public void ecall_free_load_weight_context();
   };
 
   untrusted {

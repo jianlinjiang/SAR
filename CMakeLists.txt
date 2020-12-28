@@ -103,7 +103,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs)
 
 set(CONFIG_PATH srcs)
 set(EDL_SEARCH_PATH srcs/enclave)
-set(E_SRCS srcs/enclave/ra_enclave.cpp)
+set(E_SRCS srcs/enclave/ra_enclave.cpp srcs/enclave/sar_enclave.cpp)
 set(ULIB_SRCS 
     # srcs/ra_service/ra_service.cpp 
     srcs/ra_service/server_config.cpp

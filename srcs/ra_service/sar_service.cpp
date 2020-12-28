@@ -10,7 +10,100 @@ namespace sar
   {
     transmit_response response_msg;
     response_msg.type = INTERNAL_ERROR;
-    response->set_message((const char *)&response_msg);
+    response->set_message((const char *)&response_msg, sizeof(transmit_response));
+  }
+
+  void SarServiceImpl::startAggregation(google::protobuf::RpcController *cntl_base, const StartAggregationRequest *request, SarResponse *response, google::protobuf::Closure *done) 
+  {
+    // load data into enclave
+    brpc::ClosureGuard done_guard(done);
+    brpc::Controller *cntl = static_cast<brpc::Controller *>(cntl_base);
+  }
+
+  void SarServiceImpl::loadWeights(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done) {
+    // load data into enclave
+    brpc::ClosureGuard done_guard(done);
+    brpc::Controller *cntl = static_cast<brpc::Controller *>(cntl_base);
+    int layers_num = request->layers_num();
+    int clients_num = request->clients_num();
+
+    std::string weights_directory = "weights/";
+    uint8_t buff[TRANSMIT_SIZE];
+    uint8_t tag[16];
+    uint32_t length = 0;
+    size_t read_bytes = 0; 
+    int fd = -1;
+    bool ret = true;
+    sgx_ra_context_t *context_arr = (sgx_ra_context_t*)malloc(sizeof(sgx_ra_context_t)*clients_num);
+    int *index_arr = (int*) malloc(sizeof(int)*clients_num);
+    int i = 0;
+    for(auto iter = g_client_context_map.begin(); iter != g_client_context_map.end(); iter++, i++) {
+      auto index_iter = g_client_directory_map.find(iter->first);
+      assert(index_iter != g_client_directory_map.end());
+      context_arr[i] = iter->second;
+      index_arr[i] = index_iter->second;
+    }    
+    sgx_status_t retval = SGX_SUCCESS;
+    sgx_status_t sgxret = ecall_create_weights_load_context(global_eid, &retval, context_arr, index_arr, sizeof(sgx_ra_context_t) * clients_num);
+    if (sgxret != SGX_SUCCESS || retval != SGX_SUCCESS) {
+      LOG(ERROR) << get_error_message(retval);
+      ret = false;
+      goto cleanup;
+    }
+
+    // load each layer into the enclave
+    for (int i = 0; i < layers_num; i++) {
+      for(int j = 0; j < clients_num; j++) {
+        std::string filename = weights_directory + std::to_string(j) + "/" + std::to_string(i);
+        fd = open(filename.c_str(), O_RDONLY);
+        if (fd == -1) {
+          LOG(ERROR) << "can't open file " << filename;
+          ret = false;
+          goto cleanup;
+        }
+        do {
+          // uint32_t length 4 bytes
+          // tag 
+          // encrypted bytes
+          read_bytes = read(fd, &length, 4);
+          if (read_bytes == 0) break;
+          if (read_bytes != 4) {
+            LOG(ERROR) << "read length failed from the file " << filename;
+            ret = false;
+            goto cleanup; 
+          }
+          read_bytes = read(fd, tag, 16);
+          if (read_bytes != 16) {
+            LOG(ERROR) << "read tag failed from the file" << filename;
+            ret = false;
+            goto cleanup; 
+          }
+          read_bytes = read(fd, buff, length);
+          if (read_bytes != length) {
+            LOG(ERROR) << "read encrypted data from the file" << filename;
+            ret = false;
+            goto cleanup; 
+          }
+          // load data into the enclave 
+          ret = ecall_load_weights(global_eid, &retval, buff, length, tag, j);
+          if (ret != SGX_SUCCESS || retval != SGX_SUCCESS) {
+            LOG(ERROR) << "load weight into enclave failed";
+            ret = false;
+            goto cleanup; 
+          }
+        }while(read_bytes != 0);
+      }
+      // start aggregation 
+    }
+  cleanup:
+    if (context_arr) free(context_arr);
+    if (index_arr) free(index_arr);
+    if (!ret) transmitError(response);
+    else {
+      transmit_response response_msg;
+      response_msg.type = SERVER_LOAD_RESPONSE;
+      response->set_message((const char *)&response_msg, sizeof(transmit_response));
+    }
   }
 
   void SarServiceImpl::transmitWeights(google::protobuf::RpcController *cntl_base, const SarRequest *request, SarResponse *response, google::protobuf::Closure *done)

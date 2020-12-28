@@ -22,6 +22,9 @@ namespace sar {
     SarServiceImpl() {}
     virtual ~SarServiceImpl() {}
     virtual void transmitWeights(google::protobuf::RpcController *cntl_base, const SarRequest *request, SarResponse *response, google::protobuf::Closure *done);
+    virtual void loadWeights(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done);
+
+    virtual void startAggregation(google::protobuf::RpcController *cntl_base, const StartAggregationRequest *request, SarResponse *response, google::protobuf::Closure *done); 
   private:
      void transmitError(SarResponse *response);
   };

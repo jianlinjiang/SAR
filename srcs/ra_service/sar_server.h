@@ -9,7 +9,7 @@
 #include "server_config.h"
 namespace sar {
   const static int idle_time_out = -1;
-  const static int max_concurrency = 0;
+  const static int max_concurrency = 40;
   const static int internal_port = -1;
   class SarServer {
   public:

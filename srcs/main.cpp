@@ -15,6 +15,9 @@
 #include "ra_service/enclave_context.h"
 
 using namespace std;
+
+int total_client = 100;
+
 int main(int argc, char *argv[])
 {
   // logging setting
