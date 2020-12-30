@@ -194,7 +194,7 @@ def training(model, data, label, weights, bz):
   weights.append(model.get_weights())
 
 def back_training(model, data, label, weights, bz):
-  model.fit(data, label, epochs=10, verbose=1, batch_size=bz)
+  model.fit(data, label, epochs=20, verbose=1, batch_size=bz)
   weights.append(model.get_weights())
 
 def fl_backdoor_attacker(round, gf, aggregation_method, m, r, k, model):
