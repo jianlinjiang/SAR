@@ -25,6 +25,15 @@ typedef struct _sgx_errlist_t {
     const char *sug; /* Suggestion */
 } sgx_errlist_t;
 
+typedef struct aggregation_arguments_t {
+  char a; //aggregation method
+  int n; // total_number
+  int f; // byzantine number
+  int m; // how many selected by krum;
+  float r;  // random select 0.1
+  int k; // how many selected by sar
+}aggregation_arguments;
+
 extern sgx_enclave_id_t global_eid;
 extern const size_t err_length;
 extern uint32_t g_extended_epid_group_id;

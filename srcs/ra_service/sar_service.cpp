@@ -13,13 +13,6 @@ namespace sar
     response->set_message((const char *)&response_msg, sizeof(transmit_response));
   }
 
-  void SarServiceImpl::startAggregation(google::protobuf::RpcController *cntl_base, const StartAggregationRequest *request, SarResponse *response, google::protobuf::Closure *done) 
-  {
-    // load data into enclave
-    brpc::ClosureGuard done_guard(done);
-    brpc::Controller *cntl = static_cast<brpc::Controller *>(cntl_base);
-  }
-
   void SarServiceImpl::loadWeights(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done) {
     // load data into enclave
     brpc::ClosureGuard done_guard(done);
@@ -37,6 +30,17 @@ namespace sar
     sgx_ra_context_t *context_arr = (sgx_ra_context_t*)malloc(sizeof(sgx_ra_context_t)*clients_num);
     int *index_arr = (int*) malloc(sizeof(int)*clients_num);
     int i = 0;
+    //////////////////////////////////////////
+    // argument
+    aggregation_arguments arguments;
+    arguments.a = 'a';
+    arguments.n = clients_num;
+    arguments.f = 0;
+    arguments.m = 1;
+    arguments.r = 0.1;
+    arguments.k = 100;
+    //////////////////////////////////////////
+    transmit_response response_msg;
     for(auto iter = g_client_context_map.begin(); iter != g_client_context_map.end(); iter++, i++) {
       auto index_iter = g_client_directory_map.find(iter->first);
       assert(index_iter != g_client_directory_map.end());
@@ -50,9 +54,10 @@ namespace sar
       ret = false;
       goto cleanup;
     }
-
+    
     // load each layer into the enclave
     for (int i = 0; i < layers_num; i++) {
+      // aggregate each layer
       for(int j = 0; j < clients_num; j++) {
         std::string filename = weights_directory + std::to_string(j) + "/" + std::to_string(i);
         fd = open(filename.c_str(), O_RDONLY);
@@ -85,7 +90,7 @@ namespace sar
             goto cleanup; 
           }
           // load data into the enclave 
-          ret = ecall_load_weights(global_eid, &retval, buff, length, tag, j);
+          sgxret = ecall_load_weights(global_eid, &retval, buff, length, tag, j);
           if (ret != SGX_SUCCESS || retval != SGX_SUCCESS) {
             LOG(ERROR) << "load weight into enclave failed";
             ret = false;
@@ -94,6 +99,14 @@ namespace sar
         }while(read_bytes != 0);
       }
       // start aggregation 
+      sgxret = ecall_aggregation(global_eid, &arguments, sizeof(arguments));
+      if (ret != SGX_SUCCESS) {
+        LOG(ERROR) << "aggregation failed";
+      }
+      sgxret = ecall_free_load_weight_context(global_eid);
+      if (ret != SGX_SUCCESS) {
+        LOG(ERROR) << "free context failed";
+      }
     }
   cleanup:
     if (context_arr) free(context_arr);
