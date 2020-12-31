@@ -3,7 +3,7 @@
 // Copyright (c) 2020 jianlinjiang
 
 #include "sar_service.h"
-
+extern int errno;
 namespace sar
 {
   void SarServiceImpl::transmitError(SarResponse *response)
@@ -32,15 +32,18 @@ namespace sar
     int i = 0;
     //////////////////////////////////////////
     // argument
+    char method[5] = {'a', 'm', 't', 'k', 's'};
     aggregation_arguments arguments;
-    arguments.a = 'a';
+    arguments.a = method[request->aggregation_method()];
     arguments.n = clients_num;
-    arguments.f = 0;
-    arguments.m = 1;
-    arguments.r = 0.1;
-    arguments.k = 100;
+    arguments.f = request->f();
+    arguments.m = request->m();
+    arguments.r = request->r();
+    arguments.k = request->k();
     //////////////////////////////////////////
     transmit_response response_msg;
+    LOG(INFO) << "context map size" << g_client_context_map.size();
+    LOG(INFO) << "directory map size" << g_client_directory_map.size();
     for(auto iter = g_client_context_map.begin(); iter != g_client_context_map.end(); iter++, i++) {
       auto index_iter = g_client_directory_map.find(iter->first);
       assert(index_iter != g_client_directory_map.end());
@@ -59,6 +62,7 @@ namespace sar
     for (int i = 0; i < layers_num; i++) {
       // aggregate each layer
       for(int j = 0; j < clients_num; j++) {
+        LOG(INFO) << j;
         std::string filename = weights_directory + std::to_string(j) + "/" + std::to_string(i);
         fd = open(filename.c_str(), O_RDONLY);
         if (fd == -1) {
@@ -66,7 +70,7 @@ namespace sar
           ret = false;
           goto cleanup;
         }
-        do {
+        while(true) {
           // uint32_t length 4 bytes
           // tag 
           // encrypted bytes
@@ -91,21 +95,31 @@ namespace sar
           }
           // load data into the enclave 
           sgxret = ecall_load_weights(global_eid, &retval, buff, length, tag, j);
-          if (ret != SGX_SUCCESS || retval != SGX_SUCCESS) {
+          if (sgxret != SGX_SUCCESS || retval != SGX_SUCCESS) {
             LOG(ERROR) << "load weight into enclave failed";
             ret = false;
             goto cleanup; 
-          }
-        }while(read_bytes != 0);
+          }  
+        };
+        if (close(fd) != 0) {
+          ret = false;
+          LOG(ERROR) << "close file failed, errno "<< errno;
+          goto cleanup;
+        }
       }
+      LOG(INFO) << "load all clients data of " << i << "layers";
       // start aggregation 
       sgxret = ecall_aggregation(global_eid, &arguments, sizeof(arguments));
-      if (ret != SGX_SUCCESS) {
+      if (sgxret != SGX_SUCCESS) {
         LOG(ERROR) << "aggregation failed";
+      }else {
+        LOG(INFO) << "aggregation finished ";
       }
       sgxret = ecall_free_load_weight_context(global_eid);
-      if (ret != SGX_SUCCESS) {
+      if (sgxret != SGX_SUCCESS) {
         LOG(ERROR) << "free context failed";
+      } else {
+        LOG(INFO) << "free context finished";
       }
     }
   cleanup:
@@ -171,7 +185,7 @@ namespace sar
       fd = open(filename.c_str(), O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
       if (fd == -1)
       {
-        LOG(ERROR) << "open weights file failed, filename " << filename;
+        LOG(ERROR) << "open weights file failed, filename " << filename << "errno " << errno;
         ret = false;
         goto cleanup;
       }
@@ -187,7 +201,7 @@ namespace sar
       std::unique_lock<std::mutex> lk(g_context_map_mutex);
       auto fd_iter = g_client_file_map.find(filename);
       assert(fd_iter != g_client_file_map.end());
-      fd = g_client_file_map[filename];
+      fd = fd_iter->second;;
     }
     // the format in the file 
     // uint32_t length 
@@ -196,20 +210,20 @@ namespace sar
     write_bytes = write(fd, &request_msg->length, sizeof(uint32_t));
     if (write_bytes != sizeof(uint32_t)) {
       ret = false;
-      LOG(ERROR) << "write length to file failed";
+      LOG(ERROR) << "write length to file failed, errno" << errno;
       goto cleanup;
     }
     write_bytes = write(fd, request_msg->tag, sizeof(request_msg->tag));
     if (write_bytes != sizeof(request_msg->tag)) {
       ret = false;
-      LOG(ERROR) << "write tag to file failed";
+      LOG(ERROR) << "write tag to file failed, errno" << errno;
       goto cleanup;
     }
     write_bytes = write(fd, request_msg->body, request_msg->length);
     if (write_bytes != request_msg->length)
     {
       ret = false;
-      LOG(ERROR) << "write ciphertext to file failed";
+      LOG(ERROR) << "write ciphertext to file failed, errno "<< errno;
       goto cleanup;
     }
     if (request_msg->flag == END || request_msg->length < TRANSMIT_SIZE)
@@ -217,7 +231,7 @@ namespace sar
       if (close(fd) != 0)
       {
         ret = false;
-        LOG(ERROR) << "close file failed";
+        LOG(ERROR) << "close file failed, errno "<< errno;
       }
       if (request_msg->flag == END)
       {
@@ -233,7 +247,9 @@ namespace sar
       transmitError(response);
       if (fd != -1)
       {
-        close(fd);
+        if (close(fd) != 0) {
+          LOG(ERROR) << "close file failed, errno " << errno;
+        }
         auto fd_iter = g_client_file_map.find(filename);
         if (fd_iter != g_client_file_map.end())
         {

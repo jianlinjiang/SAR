@@ -54,8 +54,8 @@ class dataNodeList
 public:
   dataNodeList()
   {
-    head = new dataNode(NULL, 0);
-    tail = new dataNode(NULL, 0);
+    head = new dataNode(nullptr, 0);
+    tail = new dataNode(nullptr, 0);
     head->next_ = tail;
     tail->prev_ = head;
     size = 0;
@@ -68,7 +68,10 @@ public:
     {
       dataNode *tmp = p;
       p = p->next_;
-      if (p->data_) free(p->data_);
+      if (tmp->data_ != nullptr) {
+        free(tmp->data_);
+        tmp->data_ = nullptr;
+      }
       delete tmp;
     }
   }
@@ -161,12 +164,14 @@ typedef struct key_wrapper_t {
 
 std::map<int, key_wrapper> g_client_index_key_map;
 uint8_t aes_gcm_iv[12] = {0};
-int max_num = 1000;
-dataNodeList *client_data[1000] = {NULL};
+int client_num;
+dataNodeList *client_data[1000] = {nullptr};
 void free_load_weight_context()
 {
-  for (int i = 0; i < max_num; i++)
+  for (int i = 0; i < client_num; i++)
   {
+    LOG(INFO, __FILE__, __LINE__, std::to_string(i).c_str());
+    LOG(INFO, __FILE__, __LINE__, "clean data of client ");
     if (client_data[i])
       delete client_data[i];
     client_data[i] = nullptr;
@@ -177,6 +182,8 @@ sgx_status_t ecall_create_weights_load_context(sgx_ra_context_t *context_arr, in
 {
   sgx_status_t ret = SGX_SUCCESS;
   int num = context_size / 4;
+  client_num = num;
+  LOG(INFO, __FILE__, __LINE__, std::to_string(client_num).c_str());
   for (int i = 0; i < num; i++)
   {
     sgx_ec_key_128bit_t sk_key;
@@ -186,18 +193,18 @@ sgx_status_t ecall_create_weights_load_context(sgx_ra_context_t *context_arr, in
       LOG(ERROR, __FILE__, __LINE__, "enclave get keys failed");
       break;
     }
-    int client_index = index_arr[i];
-    g_client_index_key_map.insert(std::make_pair(client_index, key_wrapper(sk_key)));
+    int index = index_arr[i];
+    g_client_index_key_map.insert(std::make_pair(index, key_wrapper(sk_key)));
   }
   return ret;
 }
 
-sgx_status_t ecall_load_weights(uint8_t *p_ciphertext, uint32_t length, uint8_t *p_tag, int client_index)
+sgx_status_t ecall_load_weights(uint8_t *p_ciphertext, uint32_t length, uint8_t *p_tag, int index)
 {
   sgx_status_t ret = SGX_SUCCESS;
   // decrypt the data
   // get key
-  auto iter = g_client_index_key_map.find(client_index);
+  auto iter = g_client_index_key_map.find(index);
   assert(iter != g_client_index_key_map.end());
   // plaindata buff
   uint8_t *plain_data = (uint8_t *)malloc(length);
@@ -205,19 +212,31 @@ sgx_status_t ecall_load_weights(uint8_t *p_ciphertext, uint32_t length, uint8_t 
   dataNodeList *p_list = NULL;
   if (ret != SGX_SUCCESS)
   {
-    LOG(ERROR, __FILE__, __LINE__, "decrypt failed");
+    LOG(ERROR, __FILE__, __LINE__, "decrypt failed ");
+    if (ret == SGX_ERROR_INVALID_PARAMETER) {
+      LOG(ERROR, __FILE__, __LINE__, "invalid parameter");
+    }
+    if (ret == SGX_ERROR_MAC_MISMATCH) {
+      LOG(ERROR, __FILE__, __LINE__, "The input MAC does not match the MAC calculated.");
+    }
+    if (ret == SGX_ERROR_OUT_OF_MEMORY) {
+      LOG(ERROR, __FILE__, __LINE__, "Not enough memory is available to complete this operation.");
+    }
+    if (ret == SGX_ERROR_UNEXPECTED) {
+      LOG(ERROR, __FILE__, __LINE__, "An internal cryptography library failure occurred.");
+    }
     goto cleanup;
   }
   // save the palin data
   
-  if (client_data[client_index] == NULL)
+  if (client_data[index] == nullptr)
   {
     p_list = new dataNodeList();
-    client_data[client_index] = p_list;
+    client_data[index] = p_list;
   }
   else
   {
-    dataNodeList *p_list = client_data[client_index];
+    p_list = client_data[index];
   }
   
   p_list->Insert(plain_data, length);
@@ -375,8 +394,8 @@ void sar_aggregation(int n, int f, float r, int k) {
     float* result_data = (float*)client_data[0]->Get(x)->data_;
     for(int i = 0; i < weights_num; i++) {
       for(int j = 0; j < k; j++) {
-        int client_index = heap.GetIndex(j);
-        float* weight_data = ((float*)client_data[client_index]->Get(x)->data_) + i;
+        int index = heap.GetIndex(j);
+        float* weight_data = ((float*)client_data[index]->Get(x)->data_) + i;
         weights[j] = *weight_data;
       }
       float result = 0;
@@ -467,7 +486,6 @@ void ecall_aggregation(void* arguments, size_t size) {
     LOG(ERROR,__FILE__,__LINE__, "unknown aggregation method");
     break;
   }
-  LOG(INFO, __FILE__, __LINE__, "aggregation finished");
   uint8_t encrypt_key[16] = {0x0};
   size_t dataNodeNum = client_data[0]->Size();
   sgx_aes_gcm_128bit_tag_t tag;

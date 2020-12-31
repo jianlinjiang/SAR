@@ -105,12 +105,9 @@ set(CONFIG_PATH srcs)
 set(EDL_SEARCH_PATH srcs/enclave)
 set(E_SRCS srcs/enclave/ra_enclave.cpp srcs/enclave/sar_enclave.cpp)
 set(ULIB_SRCS 
-    # srcs/ra_service/ra_service.cpp 
     srcs/ra_service/server_config.cpp
     srcs/ra_service/sar_server.cpp
     srcs/ra_service/sar_ocall.cpp
-    # srcs/ra_service/ecc_context.cpp
-    # srcs/ra_service/enclave_context.cpp
     ${PROTO_SRC} )
 
 if(SGX_HW AND SGX_MODE STREQUAL "Release")

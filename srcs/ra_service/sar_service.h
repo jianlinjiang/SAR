@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "sar.pb.h"
 #include "sar_message.h"
 #include "sar_util.h"

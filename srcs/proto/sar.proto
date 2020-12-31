@@ -18,6 +18,11 @@ message SarResponse {
 message loadWeightsRequest {
   int32 layers_num = 1;
   int32 clients_num = 2;
+  int32 aggregation_method = 3;
+  int32 f= 4;
+  int32 m = 5;
+  float r = 6;
+  int32 k = 7;
 }
 
 message Response {

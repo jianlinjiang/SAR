@@ -7,6 +7,7 @@ makeAll() {
   cd build
   mkdir logs
   mkdir weights
+  mkdir result
   cmake ..
   make
   cd ..
