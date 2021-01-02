@@ -115,18 +115,22 @@ class pair_heap {
   // max heap
   public:
     pair_heap(int c) : k(c) {
-      heap = std::vector<std::pair<double, int>>(1, std::make_pair(0.0, 0));
+      heap = std::vector<std::pair<double, int>>(c+1, std::make_pair(0.0, 0));
+    }
+    void InitHeap(int i, double score, int index) {
+      if (i>k) {
+        return ;
+      }
+      heap[i] = std::make_pair(score, index);
+    }
+    void MakeHeap() {
+      for(int i = k / 2; i>= 1; i--) down(i);
     }
     void Push(double score, int index) {
-      if (heap.size() <= k) {
-        heap.push_back(std::make_pair(score, index));
-        up(heap.size()-1);
-      } else {
-        if (heap[1].first > score) {
-          heap[1].first = score;
-          heap[1].second = index;
-          down(1);
-        }
+      if (heap[1].first > score) {
+        heap[1].first = score;
+        heap[1].second = index;
+        down(1);
       }
     }
     int GetIndex(int i) { //start from 1
@@ -136,8 +140,8 @@ class pair_heap {
     // index start from 1
     void down(int u) {
       int t = u;
-      if (u*2 <= heap.size()-1 && heap[u*2].first > heap[t].first) t = u*2;
-      if (u*2+1 <= heap.size()-1 && heap[u*2+1].first > heap[t].first) t = u*2+1;
+      if (u*2 <= k && heap[u*2].first > heap[t].first) t = u*2;
+      if (u*2+1 <= k && heap[u*2+1].first > heap[t].first) t = u*2+1;
       if (u != t) {
         swap(heap[u], heap[t]);
         down(t);
@@ -170,8 +174,6 @@ void free_load_weight_context()
 {
   for (int i = 0; i < client_num; i++)
   {
-    LOG(INFO, __FILE__, __LINE__, std::to_string(i).c_str());
-    LOG(INFO, __FILE__, __LINE__, "clean data of client ");
     if (client_data[i])
       delete client_data[i];
     client_data[i] = nullptr;
@@ -183,7 +185,6 @@ sgx_status_t ecall_create_weights_load_context(sgx_ra_context_t *context_arr, in
   sgx_status_t ret = SGX_SUCCESS;
   int num = context_size / 4;
   client_num = num;
-  LOG(INFO, __FILE__, __LINE__, std::to_string(client_num).c_str());
   for (int i = 0; i < num; i++)
   {
     sgx_ec_key_128bit_t sk_key;
@@ -255,7 +256,7 @@ void average_aggregation(int n) {
   for (int k = 0; k < dataNodeNum; k ++) {
     uint32_t length = client_data[0]->Get(k)->length_;
     size_t weights_num = length / sizeof(float); 
-    float* res = (float*) client_data[0]->Get(k)->data_;
+    float* res = (float*) client_data[client_num]->Get(k)->data_;
     for (int i = 1; i < n; i ++) {
       dataNode* p_data = client_data[i]->Get(k);
       float* p_weights = (float*)p_data->data_;
@@ -275,7 +276,7 @@ void trimed_mean_aggregation(int n, int f) {
     uint32_t length = client_data[0]->Get(k)->length_;
     size_t weights_num = length / sizeof(float);
     std::vector<float> weights(n, 0);
-    float* result_data = (float*) client_data[0]->Get(k)->data_;
+    float* result_data = (float*) client_data[client_num]->Get(k)->data_;
     for (int i = 0; i < weights_num; i++) {
       for(int j = 0; j < n; j++) {
         float* weight_data = ((float*)client_data[j]->Get(k)->data_)+i;
@@ -297,7 +298,7 @@ void median_aggregation_straightforward(int n) {
     uint32_t length = client_data[0]->Get(k)->length_;
     size_t weights_num = length / sizeof(float);
     std::vector<float> weights(n, 0);
-    float *result_data = (float*)client_data[0]->Get(k)->data_;
+    float *result_data = (float*)client_data[client_num]->Get(k)->data_;
     for(int i = 0; i < weights_num; i++) { 
       for(int j = 0; j < n; j++) {
         float* weight_data = ((float*)client_data[j]->Get(k)->data_) + i;
@@ -383,36 +384,39 @@ void sar_aggregation(int n, int f, float r, int k) {
   }
   // calculate the median of k smallest scores weights
   pair_heap heap(k);
-  for (int i = 0; i < n; i++) {
-    heap.Push(scores[i], i);
+  for (int i = 0; i < k; i++) {
+    heap.InitHeap(i+1, scores[i], i);
   }
-  // calculate the median of the top k weights
-  for (int x = 0; x < dataNodeNum; x++) {
-    size_t weights_num = client_data[0]->Get(x)->length_/ sizeof(float);
-    std::vector<float> weights(k, 0);
-    // the data is stored in client_data[0]
-    float* result_data = (float*)client_data[0]->Get(x)->data_;
-    for(int i = 0; i < weights_num; i++) {
-      for(int j = 0; j < k; j++) {
-        int index = heap.GetIndex(j);
-        float* weight_data = ((float*)client_data[index]->Get(x)->data_) + i;
-        weights[j] = *weight_data;
-      }
-      float result = 0;
-      if (k % 2 == 0) {
-        std::nth_element(weights.begin(), weights.begin()+weights.size()/2, weights.end());
-        result = weights[weights.size()/2];
-        std::nth_element(weights.begin(), weights.begin()+weights.size()/2-1, weights.end());
-        result += weights[weights.size()/2-1];
-        result /= 2;
-      } else {
-        std::nth_element(weights.begin(), weights.begin()+weights.size()/2, weights.end());
-        result = weights[weights.size()/2];
-      }
-      result_data[i] = result;
-    }
-  }
-
+  heap.MakeHeap();
+  // for (int i = k; i < n; i++) {
+  //   heap.Push(scores[i], i);
+  // }
+  // // calculate the median of the top k weights
+  // for(int x = 0; x < dataNodeNum; x++) {
+  //   size_t weight_num = client_data[0]->Get(x)->length_ / sizeof(float);
+  //   std::vector<float> weights(k, 0);
+  //   // the data is stored in client_data[client_num]
+  //   float* result_data = (float*) client_data[client_num]->Get(x)->data_;
+  //   for(int i = 0; i < weight_num; i++) {
+  //     for (int j = 0; j < k; j ++){
+  //       int index = heap.GetIndex(j);
+  //       float* weight_data = ((float*)client_data[index]->Get(x)->data_)+i;
+  //       weights[j] = *weight_data;
+  //     }
+  //     float result = 0;
+  //     if (k % 2 == 0) {
+  //       std::nth_element(weights.begin(), weights.begin()+weights.size()/2, weights.end());
+  //       result = weights[weights.size()/2];
+  //       std::nth_element(weights.begin(), weights.begin()+weights.size()/2-1, weights.end());
+  //       result += weights[weights.size()/2-1];
+  //       result /= 2;
+  //     } else {
+  //       std::nth_element(weights.begin(), weights.begin()+weights.size()/2, weights.end());
+  //       result = weights[weights.size()/2];
+  //     }
+  //     result_data[i] = result;
+  //   }
+  // }
 }
 
 void krum_aggregation(int n, int f, int m) {
@@ -453,11 +457,27 @@ void krum_aggregation(int n, int f, int m) {
       index = i;
     }
   }
+  // copy client i's data to client[client_num]
   // swap client0 and client i
-  std::swap(client_data[0], client_data[index]);
+  for (int i = 0; i < dataNodeNum; i++) {
+    memcpy(client_data[client_num]->Get(i)->data_, client_data[index]->Get(i)->data_, client_data[index]->Get(i)->length_);
+  }
 }
 
-void ecall_aggregation(void* arguments, size_t size) {
+void ecall_aggregation(int layer_index, void* arguments, size_t size) {
+  // prepare the space for aggregation result 
+  size_t dataNodeNum = client_data[0]->Size();
+  // for aggregation result 
+  client_data[client_num] = new dataNodeList();
+  // for encrypted aggregation result
+  client_data[client_num+1] = new dataNodeList();
+  for(int i = 0; i < dataNodeNum; i++) {
+    uint32_t data_length = client_data[0]->Get(i)->length_;
+    uint8_t *aggregated_data = (uint8_t*) malloc(data_length);
+    uint8_t *encrypted_data = (uint8_t*) malloc(data_length);
+    client_data[client_num]->Insert(aggregated_data, data_length);
+    client_data[client_num+1]->Insert(encrypted_data, data_length);
+  }
   sgx_aggregation_arguments* p_args = (sgx_aggregation_arguments*) arguments;
   char a = p_args->a;
   int n = p_args->n;
@@ -487,18 +507,19 @@ void ecall_aggregation(void* arguments, size_t size) {
     break;
   }
   uint8_t encrypt_key[16] = {0x0};
-  size_t dataNodeNum = client_data[0]->Size();
+  
   sgx_aes_gcm_128bit_tag_t tag;
   // client_data[1] as the encrypt result
   for (int i = 0; i < dataNodeNum; i++) {
-    sgx_status_t ret = sgx_rijndael128GCM_encrypt((const sgx_aes_gcm_128bit_key_t *)encrypt_key, client_data[0]->Get(i)->data_, client_data[0]->Get(i)->length_, client_data[1]->Get(i)->data_, aes_gcm_iv, 12, NULL, 0, &tag);
+    sgx_status_t ret = sgx_rijndael128GCM_encrypt((const sgx_aes_gcm_128bit_key_t *)encrypt_key, client_data[client_num]->Get(i)->data_, client_data[client_num]->Get(i)->length_, client_data[client_num+1]->Get(i)->data_, aes_gcm_iv, 12, NULL, 0, &tag);
     if (ret != SGX_SUCCESS) {
       LOG(ERROR, __FILE__, __LINE__, "aes gcm encrypt failed");
       return ;
     }
-    ocall_save_aggregation_result(i, client_data[1]->Get(i)->data_, client_data[1]->Get(i)->length_, tag);
+    ocall_save_aggregation_result(layer_index, client_data[1]->Get(i)->data_, client_data[1]->Get(i)->length_, tag);
   }
-  
+  delete client_data[client_num];
+  delete client_data[client_num+1];
 }
 
 

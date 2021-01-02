@@ -19,7 +19,7 @@ enclave {
 
     public sgx_status_t ecall_load_weights([in, size = length] unsigned char* p_ciphertext, unsigned int length, [in, size = 16]unsigned char* p_tag, int client_index);
 
-    public void ecall_aggregation([in, size = size] void* arguments, size_t size);
+    public void ecall_aggregation(int layer_index, [in, size = size] void* arguments, size_t size);
 
     public void ecall_free_load_weight_context();
   };

@@ -42,8 +42,6 @@ namespace sar
     arguments.k = request->k();
     //////////////////////////////////////////
     transmit_response response_msg;
-    LOG(INFO) << "context map size" << g_client_context_map.size();
-    LOG(INFO) << "directory map size" << g_client_directory_map.size();
     for(auto iter = g_client_context_map.begin(); iter != g_client_context_map.end(); iter++, i++) {
       auto index_iter = g_client_directory_map.find(iter->first);
       assert(index_iter != g_client_directory_map.end());
@@ -62,7 +60,6 @@ namespace sar
     for (int i = 0; i < layers_num; i++) {
       // aggregate each layer
       for(int j = 0; j < clients_num; j++) {
-        LOG(INFO) << j;
         std::string filename = weights_directory + std::to_string(j) + "/" + std::to_string(i);
         fd = open(filename.c_str(), O_RDONLY);
         if (fd == -1) {
@@ -107,19 +104,18 @@ namespace sar
           goto cleanup;
         }
       }
-      LOG(INFO) << "load all clients data of " << i << "layers";
       // start aggregation 
-      sgxret = ecall_aggregation(global_eid, &arguments, sizeof(arguments));
+      sgxret = ecall_aggregation(global_eid, i, &arguments, sizeof(arguments));
       if (sgxret != SGX_SUCCESS) {
         LOG(ERROR) << "aggregation failed";
       }else {
-        LOG(INFO) << "aggregation finished ";
+        // LOG(INFO) << "aggregation finished ";
       }
       sgxret = ecall_free_load_weight_context(global_eid);
       if (sgxret != SGX_SUCCESS) {
         LOG(ERROR) << "free context failed";
       } else {
-        LOG(INFO) << "free context finished";
+        // LOG(INFO) << "free context finished";
       }
     }
   cleanup:

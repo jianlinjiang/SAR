@@ -28,24 +28,24 @@ extern "C"
       fd = open(filename.c_str(), O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
       if (fd == -1) {
         LOG(ERROR) << "open result file failed, filename "<<filename << "errno:"  << errno;
-        return ;
+       return ; 
       }
       prev_layer = layer_index;
     }
     // else old layer, write to the file
     size_t write_bytes = write(fd, &length, 4);
     if (write_bytes != 4) {
-      LOG(ERROR) << "write length to file failed";
+      LOG(ERROR) << "write length to file failed, errno: " << errno;
       return ;
     }
     write_bytes = write(fd, tag, 16);
     if (write_bytes != 16) {
-      LOG(ERROR) << "write tag to file failed";
+      LOG(ERROR) << "write tag to file failed, errno:" << errno;
       return ;
     }
     write_bytes = write(fd, encrypted_data, length);
     if (write_bytes != length) {
-      LOG(ERROR) << "write encrypted data to file failde";
+      LOG(ERROR) << "write encrypted data to file failde, errno" << errno;
       return ;
     }
   }
