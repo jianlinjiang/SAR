@@ -9,6 +9,7 @@
 #include <numeric>
 #include <random>
 #include <unordered_set>
+#include <queue>
 #include "math.h"
 #include "float.h"
 #include "enclave_t.h"
@@ -382,41 +383,44 @@ void sar_aggregation(int n, int f, float r, int k) {
     std::sort(distance[i].begin(), distance[i].end());
     scores[i] = std::accumulate(distance[i].begin(), distance[i].begin()+n-f-2+1, 0);
   }
-  // calculate the median of k smallest scores weights
-  pair_heap heap(k);
-  for (int i = 0; i < k; i++) {
-    heap.InitHeap(i+1, scores[i], i);
+  auto cmp = [](std::pair<double, int> p1, std::pair<double, int> p2) {
+    if (p1.first == p2.first) {
+      return p1.second < p2.second;
+    }
+    return p1.first < p2.first;
+  };
+  std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>, cmp> q;
+  for (int i = 0; i < n; i ++) {
+    q.push(std::make_pair(scores[i], i));
   }
-  heap.MakeHeap();
-  // for (int i = k; i < n; i++) {
-  //   heap.Push(scores[i], i);
-  // }
-  // // calculate the median of the top k weights
-  // for(int x = 0; x < dataNodeNum; x++) {
-  //   size_t weight_num = client_data[0]->Get(x)->length_ / sizeof(float);
-  //   std::vector<float> weights(k, 0);
-  //   // the data is stored in client_data[client_num]
-  //   float* result_data = (float*) client_data[client_num]->Get(x)->data_;
-  //   for(int i = 0; i < weight_num; i++) {
-  //     for (int j = 0; j < k; j ++){
-  //       int index = heap.GetIndex(j);
-  //       float* weight_data = ((float*)client_data[index]->Get(x)->data_)+i;
-  //       weights[j] = *weight_data;
-  //     }
-  //     float result = 0;
-  //     if (k % 2 == 0) {
-  //       std::nth_element(weights.begin(), weights.begin()+weights.size()/2, weights.end());
-  //       result = weights[weights.size()/2];
-  //       std::nth_element(weights.begin(), weights.begin()+weights.size()/2-1, weights.end());
-  //       result += weights[weights.size()/2-1];
-  //       result /= 2;
-  //     } else {
-  //       std::nth_element(weights.begin(), weights.begin()+weights.size()/2, weights.end());
-  //       result = weights[weights.size()/2];
-  //     }
-  //     result_data[i] = result;
-  //   }
-  // }
+  // calculate the median of the top k weights
+  for(int x = 0; x < dataNodeNum; x++) {
+    size_t weight_num = client_data[0]->Get(x)->length_ / sizeof(float);
+    std::vector<float> weights(k, 0);
+    // the data is stored in client_data[client_num]
+    float* result_data = (float*) client_data[client_num]->Get(x)->data_;
+    for(int i = 0; i < weight_num; i++) {
+      for (int j = 0; j < k; j ++){
+        assert(!q.empty());
+        int index = q.top().second;
+        q.pop();
+        float* weight_data = ((float*)client_data[index]->Get(x)->data_)+i;
+        weights[j] = *weight_data;
+      }
+      float result = 0;
+      if (k % 2 == 0) {
+        std::nth_element(weights.begin(), weights.begin()+weights.size()/2, weights.end());
+        result = weights[weights.size()/2];
+        std::nth_element(weights.begin(), weights.begin()+weights.size()/2-1, weights.end());
+        result += weights[weights.size()/2-1];
+        result /= 2;
+      } else {
+        std::nth_element(weights.begin(), weights.begin()+weights.size()/2, weights.end());
+        result = weights[weights.size()/2];
+      }
+      result_data[i] = result;
+    }
+  }
 }
 
 void krum_aggregation(int n, int f, int m) {
