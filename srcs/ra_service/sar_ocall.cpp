@@ -25,7 +25,7 @@ extern "C"
     if (layer_index != prev_layer) {
       // new layer
       if (fd != -1) close(fd);
-      fd = open(filename.c_str(), O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+      fd = open(filename.c_str(), O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
       if (fd == -1) {
         LOG(ERROR) << "open result file failed, filename "<<filename << "errno:"  << errno;
        return ; 

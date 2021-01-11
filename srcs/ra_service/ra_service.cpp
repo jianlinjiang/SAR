@@ -38,7 +38,7 @@ namespace ra
     uuid_s = boost::uuids::to_string(u);
     // save the context for later use
     {
-      std::unique_lock<std::mutex> lk(g_context_map_mutex);
+      // std::unique_lock<std::mutex> lk(g_context_map_mutex);
       // init ra context
       sgxret = ecall_enclave_ra_init(global_eid, &sgxretval, false, &context, client_pub);
       if (sgxretval != SGX_SUCCESS)
@@ -92,7 +92,7 @@ namespace ra
     sgx_ra_context_t context = INT_MAX;
     auto iter = g_client_context_map.end();
     {
-      std::unique_lock<std::mutex> lk(g_context_map_mutex);
+      // std::unique_lock<std::mutex> lk(g_context_map_mutex);
       iter = g_client_context_map.find(uuid_s);
     }
     uint32_t msg1_size = 0;
@@ -167,7 +167,7 @@ namespace ra
     ra_message *response_msg = NULL;
     auto iter = g_client_context_map.end();
     {
-      std::unique_lock<std::mutex> lk(g_context_map_mutex);
+      // std::unique_lock<std::mutex> lk(g_context_map_mutex);
       iter = g_client_context_map.find(uuid_s);
     }
     if (request_msg->type != CLIENT_MSG2)
@@ -231,7 +231,7 @@ namespace ra
     std::string uuid_s((const char *)request_msg->uuid, UUID_LENGTH);
     auto iter = g_client_context_map.end();
     {
-      std::unique_lock<std::mutex> lk(g_context_map_mutex);
+      // std::unique_lock<std::mutex> lk(g_context_map_mutex);
       iter = g_client_context_map.find(uuid_s);
     }
     ra_message *response_msg = NULL;
@@ -309,7 +309,7 @@ namespace ra
 
   void RaServiceImpl::removeRaContext(std::string uuid_s)
   {
-    std::unique_lock<std::mutex> lk(g_context_map_mutex);
+    // std::unique_lock<std::mutex> lk(g_context_map_mutex);
     auto iter = g_client_context_map.find(uuid_s);
     if (iter != g_client_context_map.end())
     {

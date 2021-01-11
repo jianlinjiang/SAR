@@ -49,7 +49,7 @@ endif()
 if(SGX_FOUND)
     message(STATUS "Found Intel SGX SDK.")
     set(SGX_HW ON CACHE BOOL "Run SGX ON hardware, OFF for simulation." FORCE)
-    set(SGX_MODE "Debug" CACHE STRING "SGX build mode: Debug; PreRelease; Release." FORCE)
+    set(SGX_MODE "PreRelease" CACHE STRING "SGX build mode: Debug; PreRelease; Release." FORCE)
 
     if(SGX_HW)
         set(SGX_URTS_LIB sgx_urts)

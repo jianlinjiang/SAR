@@ -30,6 +30,8 @@ message Response {
 };
 
 service SarService {
+  rpc resigsterTransmitWeights(SarRequest) returns (SarResponse);
   rpc transmitWeights(SarRequest) returns (SarResponse);
   rpc loadWeights(loadWeightsRequest) returns (SarResponse);
+  rpc loadWeightsOptimized(loadWeightsRequest) returns (SarResponse);
 }

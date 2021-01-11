@@ -170,7 +170,13 @@ typedef struct key_wrapper_t {
 std::map<int, key_wrapper> g_client_index_key_map;
 uint8_t aes_gcm_iv[12] = {0};
 int client_num;
-dataNodeList *client_data[1000] = {nullptr};
+dataNodeList *client_data[1050] = {nullptr};
+// save as 
+// datanode, weight_num client_num
+std::vector<std::vector<float*>> weights_arr;
+std::vector<float*> aggregation_result;
+std::vector<uint8_t*> encrypt_aggregation_result;
+// node weight
 void free_load_weight_context()
 {
   for (int i = 0; i < client_num; i++)
@@ -178,6 +184,26 @@ void free_load_weight_context()
     if (client_data[i])
       delete client_data[i];
     client_data[i] = nullptr;
+  }
+}
+
+void free_load_weight_context_optimized() {
+  while(!weights_arr.empty()) {
+    std::vector<float*> column = weights_arr.back();
+    for(int i = 0; i < column.size(); i++) {
+      if (column[i]) free(column[i]);
+    }
+    weights_arr.pop_back();
+  }
+  while(!aggregation_result.empty()){
+    float* result = aggregation_result.back();
+    if (result) free(result);
+    aggregation_result.pop_back();
+  }
+  while(!encrypt_aggregation_result.empty()){
+    uint8_t* encrypt_result = encrypt_aggregation_result.back();
+    if (encrypt_result) free(encrypt_result);
+    encrypt_aggregation_result.pop_back();
   }
 }
 
@@ -199,6 +225,59 @@ sgx_status_t ecall_create_weights_load_context(sgx_ra_context_t *context_arr, in
     g_client_index_key_map.insert(std::make_pair(index, key_wrapper(sk_key)));
   }
   return ret;
+}
+
+// client index
+sgx_status_t ecall_load_weights_optimized(uint8_t *p_ciphertext, uint32_t length, uint8_t* p_tag, int index, int node_index) {
+  sgx_status_t ret = SGX_SUCCESS;
+  // decrypt the data
+  // get key
+  auto iter = g_client_index_key_map.find(index);
+  assert(iter != g_client_index_key_map.end());
+  uint8_t *plain_data = (uint8_t*)malloc(length);
+  ret = sgx_rijndael128GCM_decrypt(&iter->second.sk_key, p_ciphertext, length, plain_data, aes_gcm_iv, 12, NULL, 0, (const sgx_aes_gcm_128bit_tag_t*)p_tag);
+  uint32_t weight_num = length / sizeof(float);
+  float* plain_weight = (float*) plain_data;
+  if (ret != SGX_SUCCESS)
+  {
+    LOG(ERROR, __FILE__, __LINE__, "decrypt failed ");
+    if (ret == SGX_ERROR_INVALID_PARAMETER) {
+      LOG(ERROR, __FILE__, __LINE__, "invalid parameter");
+    }
+    if (ret == SGX_ERROR_MAC_MISMATCH) {
+      LOG(ERROR, __FILE__, __LINE__, "The input MAC does not match the MAC calculated.");
+    }
+    if (ret == SGX_ERROR_OUT_OF_MEMORY) {
+      LOG(ERROR, __FILE__, __LINE__, "Not enough memory is available to complete this operation.");
+    }
+    if (ret == SGX_ERROR_UNEXPECTED) {
+      LOG(ERROR, __FILE__, __LINE__, "An internal cryptography library failure occurred.");
+    }
+    goto cleanup;
+  }
+  
+  if (index == 0 ) {
+    // first time allocate memory
+    std::vector<float*> column(weight_num, nullptr);
+    for (int i = 0; i < weight_num; i++) {
+      column[i] = (float*) malloc(sizeof(float) * client_num); 
+    }
+    weights_arr.push_back(column);
+    float* result_data = (float*)malloc(sizeof(float) * weight_num);
+    uint8_t* encrypt_result_data = (uint8_t*) malloc(sizeof(float) * weight_num);
+    aggregation_result.push_back(result_data);
+    encrypt_aggregation_result.push_back(encrypt_result_data);
+  }
+  for(int i = 0; i < weight_num; i++) {
+    weights_arr[node_index][i][index] = plain_weight[i];
+  } 
+
+  cleanup:
+    if (plain_data) free(plain_data);
+    if (ret != SGX_SUCCESS) {
+      free_load_weight_context_optimized();
+    }
+    return ret;
 }
 
 sgx_status_t ecall_load_weights(uint8_t *p_ciphertext, uint32_t length, uint8_t *p_tag, int index)
@@ -251,6 +330,28 @@ void ecall_free_load_weight_context() {
   free_load_weight_context();
 }
 
+
+void ecall_free_load_weight_context_optimized() {
+  free_load_weight_context_optimized();
+}
+
+void average_aggregation_optimized(int n) {
+  int node_num = weights_arr.size();
+  for(int i = 0; i < node_num; i++) {
+    std::vector<float*> column = weights_arr[i];
+    for(int j = 0; j< column.size(); j++) {
+      float *weights = column[j];
+      // weight is a arr contain n weights
+      float result = 0;
+      for(int z = 0; z < n; z++) {
+        result += weights[z];
+      }
+      result /= n;
+      aggregation_result[i][j] = result;
+    }
+  }
+}
+
 // client 0 as the result
 void average_aggregation(int n) {
   size_t dataNodeNum = client_data[0]->Size();
@@ -289,6 +390,44 @@ void trimed_mean_aggregation(int n, int f) {
       result = std::accumulate(weights.begin()+f, weights.end()-f, 0);
       result /= (n - 2 * f); 
       result_data[i] = result;
+    }
+  }
+}
+
+void trimed_mean_aggregation_optimized(int n, int f) {
+  int dataNodeNum = weights_arr.size();
+  for(int i = 0; i < dataNodeNum; i++) {
+    std::vector<float*> column = weights_arr[i];
+    for (int j = 0; j < column.size(); j++){
+      // trimed mean
+      float* weights = column[j];
+      std::sort(weights, weights+n);
+      float result = 0;
+      result = std::accumulate(weights+f, weights+n-f, 0);
+      result /= (n-2*f);
+      aggregation_result[i][j] = result;
+    }
+  }
+}
+
+void median_aggregation_optimized(int n) {
+  int node_num = weights_arr.size();
+  for (int i = 0; i < node_num; i++) {
+    std::vector<float*> column = weights_arr[i];
+    for(int j = 0; j < column.size(); j++) {
+      float *weights = column[j];
+      float result = 0;
+      if (n % 2 == 0) {
+        std::nth_element(weights, weights+n/2, weights+n);
+        result += weights[n/2];
+        std::nth_element(weights, weights+n/2-1,weights+n);
+        result += weights[n/2+1];
+        result /= 2;
+      } else {
+        std::nth_element(weights, weights + n / 2, weights + n);
+        result += weights[n/2];
+      }
+      aggregation_result[i][j] = result;
     }
   }
 }
@@ -383,15 +522,21 @@ void sar_aggregation(int n, int f, float r, int k) {
     std::sort(distance[i].begin(), distance[i].end());
     scores[i] = std::accumulate(distance[i].begin(), distance[i].begin()+n-f-2+1, 0);
   }
+  // choose the topk
   auto cmp = [](std::pair<double, int> p1, std::pair<double, int> p2) {
     if (p1.first == p2.first) {
       return p1.second < p2.second;
     }
     return p1.first < p2.first;
   };
-  std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>, cmp> q;
+  std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>, decltype(cmp)> queue(cmp);
   for (int i = 0; i < n; i ++) {
-    q.push(std::make_pair(scores[i], i));
+    queue.push(std::make_pair(scores[i], i));
+  }
+  std::vector<int> indexs;
+  for(int i = 0; i < k; i++) {
+    indexs.push_back(queue.top().second);
+    queue.pop();
   }
   // calculate the median of the top k weights
   for(int x = 0; x < dataNodeNum; x++) {
@@ -401,9 +546,7 @@ void sar_aggregation(int n, int f, float r, int k) {
     float* result_data = (float*) client_data[client_num]->Get(x)->data_;
     for(int i = 0; i < weight_num; i++) {
       for (int j = 0; j < k; j ++){
-        assert(!q.empty());
-        int index = q.top().second;
-        q.pop();
+        int index = indexs[j];
         float* weight_data = ((float*)client_data[index]->Get(x)->data_)+i;
         weights[j] = *weight_data;
       }
@@ -419,6 +562,124 @@ void sar_aggregation(int n, int f, float r, int k) {
         result = weights[weights.size()/2];
       }
       result_data[i] = result;
+    }
+  }
+}
+
+void krum_aggregation_optimized(int n, int f, int m) {
+  int dataNodeNum = weights_arr.size();
+  std::vector<std::vector<double>> distance(n, std::vector<double>(n, 0));
+  for (int i = 0; i < dataNodeNum; i++) {
+    std::vector<float*> column = weights_arr[i];
+    for(int j = 0; j < column.size(); j++) {
+      float* weights = column[j];
+      for (int x = 0; x < n; x++) {
+        for (int y = x + 1; y < n; y++) {
+          distance[x][y] += (weights[x] - weights[y])*(weights[x] - weights[y]);
+        }
+      }
+    }
+  }
+  // transpose 
+  for(int i = 0; i < n; i++) {
+    for(int j = i - 1; j>= 0; j--) {
+      distance[j][i] = sqrt(distance[j][i]);
+      distance[i][j] = distance[j][i];
+    }
+  }
+  // sum the closeest n-f-2 distances
+  std::vector<double> scores(n, 0);
+  for(int i = 0; i < n; i++) {
+    std::sort(distance[i].begin(), distance[i].end());
+    scores[i] = std::accumulate(distance[i].begin(), distance[i].begin()+n-f-2+1, 0);
+  }
+  // find the smallest scores index
+  int index = -1;
+  double smallest = DBL_MAX;
+  for(int i = 0; i < n; i++) {
+    if (scores[i] < smallest) {
+      smallest = scores[i];
+      index = i;
+    }
+  }
+  // save the result to aggregation result 
+  for (int i = 0; i < dataNodeNum; i++) {
+    std::vector<float*> column = weights_arr[i];
+    for (int j = 0; j < column.size(); j++) {
+      aggregation_result[i][j] = column[j][index];
+    }
+  }
+}
+
+void sar_aggregation_optimized(int n, int f, float r, int k) {
+  int dataNodeNum = weights_arr.size();
+  std::vector<std::vector<double>> distance(n, std::vector<double>(n, 0));
+  for(int i = 0; i < dataNodeNum; i++) {
+    // each column
+    std::vector<float*> column = weights_arr[i];
+    int weight_num = column.size();
+    uint32_t select_num = (uint32_t)weight_num * r;
+    std::vector<int> selected = pick(weight_num, select_num);
+    for (int z = 0; z < selected.size(); z++) {
+      float* weights = column[selected[z]];
+      for (int x = 0; x < n; x ++ ){
+        for(int y = x + 1; y < n; y++) {
+          distance[x][y] += (weights[x] - weights[y])* (weights[x] - weights[y]);
+        }
+      }
+    }
+  }
+  // transpose
+  for (int i = 0; i < n; i++) {
+    for(int j = i-1; j>=0; j--) {
+      distance[j][i] = sqrt(distance[j][i]);
+      distance[i][j] = distance[j][i];
+    }
+  }
+  // sum the closest n - f - 2 distance
+  std::vector<double> scores(n, 0);
+  for (int i = 0; i< n; i++) {
+    std::sort(distance[i].begin(), distance[i].end());
+    scores[i] = std::accumulate(distance[i].begin(), distance[i].begin()+n-f-2+1, 0);
+  }
+  // choose the topk with the smallest scores
+  auto cmp = [](std::pair<double, int> p1, std::pair<double, int> p2) {
+    if (p1.first == p2.first) {
+      return p1.second < p2.second;
+    }
+    return p1.first < p2.first;
+  };
+  std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>, decltype(cmp)> queue(cmp);
+  for (int i = 0; i < n; i ++) {
+    queue.push(std::make_pair(scores[i], i));
+  }
+  std::vector<int> topk_indexs;
+  for(int i = 0; i < k; i++) {
+    topk_indexs.push_back(queue.top().second);
+    queue.pop();
+  }
+  // calculate the median of the top k weights
+  for (int i = 0; i < dataNodeNum; i++) {
+    std::vector<float*> column = weights_arr[i];
+    std::vector<float> topk_weights(k, 0);
+    for(int j = 0; j < column.size(); j++) {
+      float* weights = column[j];
+      for(int z = 0; z < k; z ++) {
+        int topk_index = topk_indexs[z];
+        topk_weights[z] = weights[topk_index];
+      }
+      float result = 0; 
+      if(k % 2 == 0) {
+        std::nth_element(topk_weights.begin(), topk_weights.begin()+topk_weights.size()/2, topk_weights.end());
+        result += topk_weights[topk_weights.size()/2];
+        std::nth_element(topk_weights.begin(),topk_weights.begin()+topk_weights.size()/2-1, topk_weights.end());
+        result += topk_weights[topk_weights.size()/2-1];
+        result /= 2;
+      } else {
+        std::nth_element(topk_weights.begin(), topk_weights.begin()+topk_weights.size()/2, topk_weights.end());
+        result = topk_weights[topk_weights.size()/2];
+      }
+      aggregation_result[i][j] = result;
     }
   }
 }
@@ -468,6 +729,48 @@ void krum_aggregation(int n, int f, int m) {
   }
 }
 
+void ecall_aggregation_optimized(int layer_index, void* arguments, size_t size) {
+  sgx_aggregation_arguments* p_args = (sgx_aggregation_arguments*) arguments;
+  char a = p_args->a;
+  int n = p_args->n;
+  int f = p_args->f;
+  int m = p_args->m;
+  float r = p_args->r;
+  int k = p_args->k;
+  switch (a)
+  {
+  case 'a'://average
+    average_aggregation_optimized(n);
+    break;
+  case 'm'://median
+    median_aggregation_optimized(n);
+    break;
+  case 't'://trimed mean
+    trimed_mean_aggregation_optimized(n, f);
+    break;
+  case 'k':// krum
+    krum_aggregation_optimized(n, f, m);
+    break;
+  case 's'://sar
+    sar_aggregation_optimized(n, f, r, k);
+    break;
+  default:
+    LOG(ERROR,__FILE__,__LINE__, "unknown aggregation method");
+    break;
+  }
+  uint8_t encrypt_key[16] = {0x0};
+  sgx_aes_gcm_128bit_tag_t tag;
+  int dataNodeNum = weights_arr.size();
+  for(int i = 0; i < dataNodeNum; i++) {
+    sgx_status_t ret = sgx_rijndael128GCM_encrypt((const sgx_aes_gcm_128bit_key_t*)encrypt_key, (uint8_t*)aggregation_result[i], weights_arr[i].size() * sizeof(float), encrypt_aggregation_result[i], aes_gcm_iv, 12, NULL, 0, &tag);
+    if (ret != SGX_SUCCESS) {
+      LOG(ERROR, __FILE__, __LINE__, "aes gcm encrypt failed");
+      return ;
+    }
+    ocall_save_aggregation_result(layer_index, encrypt_aggregation_result[i], weights_arr.size() * sizeof(float),tag);
+  }
+}
+
 void ecall_aggregation(int layer_index, void* arguments, size_t size) {
   // prepare the space for aggregation result 
   size_t dataNodeNum = client_data[0]->Size();
@@ -513,14 +816,13 @@ void ecall_aggregation(int layer_index, void* arguments, size_t size) {
   uint8_t encrypt_key[16] = {0x0};
   
   sgx_aes_gcm_128bit_tag_t tag;
-  // client_data[1] as the encrypt result
   for (int i = 0; i < dataNodeNum; i++) {
     sgx_status_t ret = sgx_rijndael128GCM_encrypt((const sgx_aes_gcm_128bit_key_t *)encrypt_key, client_data[client_num]->Get(i)->data_, client_data[client_num]->Get(i)->length_, client_data[client_num+1]->Get(i)->data_, aes_gcm_iv, 12, NULL, 0, &tag);
     if (ret != SGX_SUCCESS) {
       LOG(ERROR, __FILE__, __LINE__, "aes gcm encrypt failed");
       return ;
     }
-    ocall_save_aggregation_result(layer_index, client_data[1]->Get(i)->data_, client_data[1]->Get(i)->length_, tag);
+    ocall_save_aggregation_result(layer_index, client_data[client_num+1]->Get(i)->data_, client_data[client_num+1]->Get(i)->length_, tag);
   }
   delete client_data[client_num];
   delete client_data[client_num+1];

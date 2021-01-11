@@ -22,15 +22,15 @@ int main(int argc, char *argv[])
 {
   // logging setting
   int pid = (int)getpid();
-  string log_file = "logs/SAR_SERVER." + to_string(pid);
-  logging::LoggingSettings logSetting;
+  // string log_file = "logs/SAR_SERVER." + to_string(pid);
+  // logging::LoggingSettings logSetting;
   // set logging dest
-  logSetting.logging_dest = logging::LOG_TO_ALL;
-  logSetting.log_file = log_file.c_str();
-  logSetting.lock_log = logging::LOCK_LOG_FILE;
-  logSetting.delete_old = logging::DELETE_OLD_LOG_FILE;
+  // logSetting.logging_dest = logging::LOG_TO_ALL;
+  // logSetting.log_file = log_file.c_str();
+  // logSetting.lock_log = logging::LOCK_LOG_FILE;
+  // logSetting.delete_old = logging::DELETE_OLD_LOG_FILE;
 
-  InitLogging(logSetting);
+  // InitLogging(logSetting);
 
   sar::EnclaveContext enclave_context;
   

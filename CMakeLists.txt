@@ -81,8 +81,16 @@ set(DYNAMIC_LIB
 # generate protobuf source code
 protobuf_generate_cpp(PROTO_SRC PROTO_HEADER srcs/proto/ra.proto srcs/proto/sar.proto)
 
-# set(BRPC_CMAKE_CPP_FLAGS "-DGFLAGS_NS=${GFLAGS_NS}")
+set(SGX_MODE "PreRelease")
 set(BRPC_CMAKE_CPP_FLAGS "")
+if (SGX_MODE STREQUAL "PreRelease")
+    set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CPP_FLAGS} -O2 -D__const__= -pipe -W -Wall -Wno-unused-parameter -fPIC -fno-omit-frame-pointer")
+else ()
+    set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CPP_FLAGS} -DDEBUG -O0 -D__const__= -pipe -W -Wall -Wno-unused-parameter -fPIC -fno-omit-frame-pointer")
+    set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CXX_FLAGS} -DBRPC_ENABLE_CPU_PROFILER -std=c++11")
+endif()
+
+# set(BRPC_CMAKE_CPP_FLAGS "-DGFLAGS_NS=${GFLAGS_NS}")
 set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CPP_FLAGS} -DDEBUG -O0 -D__const__= -pipe -W -Wall -Wno-unused-parameter -fPIC -fno-omit-frame-pointer")
 set(BRPC_CMAKE_CXX_FLAGS "${BRPC_CMAKE_CXX_FLAGS} -DBRPC_ENABLE_CPU_PROFILER -std=c++11")
 # brpc end
@@ -109,6 +117,8 @@ set(ULIB_SRCS
     srcs/ra_service/sar_server.cpp
     srcs/ra_service/sar_ocall.cpp
     ${PROTO_SRC} )
+
+
 
 if(SGX_HW AND SGX_MODE STREQUAL "Release")
     set(LDS ${CONFIG_PATH}/enclave.lds)
