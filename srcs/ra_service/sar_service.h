@@ -16,7 +16,7 @@
 #include "sar_message.h"
 #include "sar_util.h"
 
-
+extern int result_fd; 
 namespace sar {
   class SarServiceImpl : public SarService {
   public:
@@ -24,7 +24,9 @@ namespace sar {
     virtual ~SarServiceImpl() {}
     virtual void transmitWeights(google::protobuf::RpcController *cntl_base, const SarRequest *request, SarResponse *response, google::protobuf::Closure *done);
     virtual void loadWeights(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done);
+    virtual void loadWeights2(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done);
     virtual void loadWeightsOptimized(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done);
+    virtual void loadWeightsOptimized2(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done);
     virtual void resigsterTransmitWeights(google::protobuf::RpcController *cntl_base, const SarRequest *request, SarResponse *response, google::protobuf::Closure *done);
   private:
      void transmitError(SarResponse *response);

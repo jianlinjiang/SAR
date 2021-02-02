@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <string>
-// must use extern "C" 
+// must use extern "C"
 // otherwise undefine reference ld error happens
 extern "C"
 {
@@ -17,6 +17,7 @@ extern "C"
   {
     ::logging::LogMessage(file, line, ::logging::LogSeverity(severity)).stream() << str;
   }
+  int result_fd = -1;
 
   int prev_layer = -1;
   int fd = -1;
@@ -44,6 +45,24 @@ extern "C"
       return ;
     }
     write_bytes = write(fd, encrypted_data, length);
+    if (write_bytes != length) {
+      LOG(ERROR) << "write encrypted data to file failde, errno" << errno;
+      return ;
+    }
+  }
+
+  void ocall_save_aggregation_result2(int layer_index, uint8_t *encrypted_data, uint32_t length, uint8_t *tag) {
+    size_t write_bytes = write(result_fd, &length, 4);
+    if (write_bytes != 4) {
+      LOG(ERROR) << "write length to file failed, errno: " << errno;
+      return ;
+    }
+    write_bytes = write(result_fd, tag, 16);
+    if (write_bytes != 16) {
+      LOG(ERROR) << "write tag to file failed, errno:" << errno;
+      return ;
+    }
+    write_bytes = write(result_fd, encrypted_data, length);
     if (write_bytes != length) {
       LOG(ERROR) << "write encrypted data to file failde, errno" << errno;
       return ;

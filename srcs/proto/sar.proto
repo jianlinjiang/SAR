@@ -33,5 +33,7 @@ service SarService {
   rpc resigsterTransmitWeights(SarRequest) returns (SarResponse);
   rpc transmitWeights(SarRequest) returns (SarResponse);
   rpc loadWeights(loadWeightsRequest) returns (SarResponse);
+  rpc loadWeights2(loadWeightsRequest) returns (SarResponse);
   rpc loadWeightsOptimized(loadWeightsRequest) returns (SarResponse);
+  rpc loadWeightsOptimized2(loadWeightsRequest) returns (SarResponse);
 }

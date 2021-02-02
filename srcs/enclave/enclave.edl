@@ -16,20 +16,27 @@ enclave {
     public sgx_status_t ecall_enclave_ecc_shutdown();
     
     public sgx_status_t ecall_create_weights_load_context([in, size = context_size] sgx_ra_context_t *context_arr, [in, size = context_size] int *index_arr, size_t context_size);
+    public void ecall_create_weights_load_context3(int n);
 
     public sgx_status_t ecall_load_weights([in, size = length] unsigned char* p_ciphertext, unsigned int length, [in, size = 16]unsigned char* p_tag, int client_index);
+    public sgx_status_t ecall_load_weights2([in, size = length] unsigned char* p_ciphertext, unsigned int length, [in, size = 16]unsigned char* p_tag, int client_index);
 
     public sgx_status_t ecall_load_weights_optimized([in, size = length ]unsigned char *p_ciphertext, unsigned int length, [in, size = 16] unsigned char* p_tag, int index, int node_index);
+    public sgx_status_t ecall_load_weights_optimized2([in, size = length ]unsigned char *p_ciphertext, unsigned int length, [in, size = 16] unsigned char* p_tag, int index, int node_index);
+    public sgx_status_t ecall_load_weights_optimized3([in, size = length ]unsigned char *p_ciphertext, unsigned int length, [in, size = 16] unsigned char* p_tag, int index, int node_index);
 
     public void ecall_aggregation(int layer_index, [in, size = size] void* arguments, size_t size);
     public void ecall_aggregation_optimized(int layer_index, [in, size = size] void* arguments, size_t size);
-
+    public void ecall_aggregation_optimized2(int layer_index, [in, size = size] void* arguments, size_t size);
+    public void ecall_random_generate(int total, int select_num);
     public void ecall_free_load_weight_context();
     public void ecall_free_load_weight_context_optimized();
+    public void ecall_free_load_weight_context_optimized2();
   };
 
   untrusted {
     void ocall_log(int severity, [in, string] const char* file, int line,[in, string] const char* log_str);
     void ocall_save_aggregation_result(int layer_index, [in, size = length] unsigned char *encrypted_data, unsigned int length, [in, size = 16]unsigned char *tag);
+    void ocall_save_aggregation_result2(int layer_index, [in, size = length] unsigned char *encrypted_data, unsigned int length, [in, size = 16]unsigned char *tag);
   };
 };

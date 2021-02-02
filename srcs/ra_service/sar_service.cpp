@@ -148,6 +148,289 @@ namespace sar
     }
   }
 
+  void SarServiceImpl::loadWeights2(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done)
+  {
+    brpc::ClosureGuard done_guard(done);
+    brpc::Controller *cntl = static_cast<brpc::Controller *>(cntl_base);
+    int layers_num = request->layers_num();
+    int clients_num = request->clients_num();
+
+    std::string weights_directory = "weights/";
+    uint8_t buff[TRANSMIT_SIZE];
+    uint8_t tag[16];
+    uint32_t length = 0;
+    size_t read_bytes = 0;
+    int fd = -1;
+    bool ret = true;
+    int i = 0;
+    //////////////////////////////////////////
+    // argument
+    char method[5] = {'a', 'm', 't', 'k', 's'};
+    aggregation_arguments arguments;
+    arguments.a = method[request->aggregation_method()];
+    arguments.n = clients_num;
+    arguments.f = request->f();
+    arguments.m = request->m();
+    arguments.r = request->r();
+    arguments.k = request->k();
+    //////////////////////////////////////////
+    transmit_response response_msg;
+    sgx_status_t retval = SGX_SUCCESS;
+    sgx_status_t sgxret = ecall_create_weights_load_context3(global_eid, clients_num);
+    if (request->aggregation_method() == 4) {
+      sgxret = ecall_random_generate(global_eid, TRANSMIT_SIZE, int(TRANSMIT_SIZE * request->r())); 
+    }
+    for (int i = 0; i < layers_num; i++)
+    {
+      std::map<int, int> index_fd;
+      std::string result_filename = "result/" + std::to_string(i);
+      result_fd = open(result_filename.c_str(), O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+      if (result_fd == -1) {
+        LOG(ERROR) << "open result file failed, filename "<<result_filename << "errno:"  << errno;
+       return ; 
+      }
+      // aggregate each layer
+      while (true)
+      {
+        for (int j = 0; j < clients_num; j++)
+        {
+          auto iter = index_fd.find(j);
+          if (iter == index_fd.end())
+          {
+            std::string filename = weights_directory + std::to_string(j) + "/" + std::to_string(i);
+            fd = open(filename.c_str(), O_RDONLY);
+            if (fd == -1)
+            {
+              LOG(ERROR) << "can't open file " << filename;
+              ret = false;
+              goto cleanup;
+            }
+            index_fd.insert(std::make_pair(j, fd));
+          }
+          else
+          {
+            fd = iter->second;
+          }
+
+          read_bytes = read(fd, &length, 4);
+          if (read_bytes == 0)
+            break;
+          if (read_bytes != 4)
+          {
+            LOG(ERROR) << "read length failed from the file ";
+            ret = false;
+            goto cleanup;
+          }
+          read_bytes = read(fd, tag, 16);
+          if (read_bytes != 16)
+          {
+            LOG(ERROR) << "read tag failed from the file";
+            ret = false;
+            goto cleanup;
+          }
+          read_bytes = read(fd, buff, length);
+          if (read_bytes != length)
+          {
+            LOG(ERROR) << "read encrypted data from the file";
+            ret = false;
+            goto cleanup;
+          }
+          // load data into the enclave
+          sgxret = ecall_load_weights2(global_eid, &retval, buff, length, tag, j);
+          if (sgxret != SGX_SUCCESS || retval != SGX_SUCCESS)
+          {
+            LOG(ERROR) << "load weight into enclave failed";
+            ret = false;
+            goto cleanup;
+          }
+        }
+        if (read_bytes == 0)
+        {
+          // finish to next layer
+          for (auto iter : index_fd)
+          {
+            fd = iter.second;
+            if (close(fd) != 0)
+            {
+              ret = false;
+              LOG(ERROR) << "close file failed, errno " << errno;
+              goto cleanup;
+            }
+          }
+          if (close(result_fd) != 0) {
+            ret = false;
+            LOG(ERROR) << "result file close failed, errno " << errno;
+            goto cleanup;
+
+          }
+          result_fd = -1;
+          break;
+        }
+        sgxret = ecall_aggregation(global_eid, i, &arguments, sizeof(arguments));
+        if (sgxret != SGX_SUCCESS)
+        {
+          LOG(ERROR) << "aggregation failed";
+        }
+        sgxret = ecall_free_load_weight_context(global_eid);
+        if (sgxret != SGX_SUCCESS)
+        {
+          LOG(ERROR) << "free context failed";
+        }
+      }
+    }
+  cleanup:
+    if (!ret)
+      transmitError(response);
+    else
+    {
+      transmit_response response_msg;
+      response_msg.type = SERVER_LOAD_RESPONSE;
+      response->set_message((const char *)&response_msg, sizeof(transmit_response));
+    }
+  }
+
+  void SarServiceImpl::loadWeightsOptimized2(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done)
+  {
+    brpc::ClosureGuard done_guard(done);
+    brpc::Controller *cntl = static_cast<brpc::Controller *>(cntl_base);
+    int layers_num = request->layers_num();
+    int clients_num = request->clients_num();
+
+    std::string weights_directory = "weights/";
+    uint8_t buff[TRANSMIT_SIZE];
+    uint8_t tag[16];
+    uint32_t length = 0;
+    size_t read_bytes = 0;
+    int fd = -1;
+    bool ret = true;
+    int i = 0;
+    //////////////////////////////////////////
+    // argument
+    char method[5] = {'a', 'm', 't', 'k', 's'};
+    aggregation_arguments arguments;
+    arguments.a = method[request->aggregation_method()];
+    arguments.n = clients_num;
+    arguments.f = request->f();
+    arguments.m = request->m();
+    arguments.r = request->r();
+    arguments.k = request->k();
+    //////////////////////////////////////////
+    transmit_response response_msg;
+    sgx_status_t retval = SGX_SUCCESS;
+    sgx_status_t sgxret = ecall_create_weights_load_context3(global_eid, clients_num);
+    if (request->aggregation_method() == 4) {
+      LOG(INFO)<<"generate random selected";
+      sgxret = ecall_random_generate(global_eid, TRANSMIT_SIZE, int(TRANSMIT_SIZE * request->r())); 
+    }
+    for (int i = 0; i < layers_num; i++)
+    {
+      std::map<int, int> index_fd;
+      std::string result_filename = "result/" + std::to_string(i);
+      result_fd = open(result_filename.c_str(), O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+      if (result_fd == -1) {
+        LOG(ERROR) << "open result file failed, filename "<<result_filename << "errno:"  << errno;
+       return ; 
+      }
+      // aggregate each layer
+      while (true)
+      {
+        for (int j = 0; j < clients_num; j++)
+        {
+          auto iter = index_fd.find(j);
+          if (iter == index_fd.end())
+          {
+            std::string filename = weights_directory + std::to_string(j) + "/" + std::to_string(i);
+            fd = open(filename.c_str(), O_RDONLY);
+            if (fd == -1)
+            {
+              LOG(ERROR) << "can't open file " << filename;
+              ret = false;
+              goto cleanup;
+            }
+            index_fd.insert(std::make_pair(j, fd));
+          }
+          else
+          {
+            fd = iter->second;
+          }
+
+          read_bytes = read(fd, &length, 4);
+          if (read_bytes == 0)
+            break;
+          if (read_bytes != 4)
+          {
+            LOG(ERROR) << "read length failed from the file ";
+            ret = false;
+            goto cleanup;
+          }
+          read_bytes = read(fd, tag, 16);
+          if (read_bytes != 16)
+          {
+            LOG(ERROR) << "read tag failed from the file";
+            ret = false;
+            goto cleanup;
+          }
+          read_bytes = read(fd, buff, length);
+          if (read_bytes != length)
+          {
+            LOG(ERROR) << "read encrypted data from the file";
+            ret = false;
+            goto cleanup;
+          }
+          // load data into the enclave
+          sgxret = ecall_load_weights_optimized3(global_eid, &retval, buff, length, tag, j, 0);
+          if (sgxret != SGX_SUCCESS || retval != SGX_SUCCESS)
+          {
+            LOG(ERROR) << "load weight into enclave failed";
+            ret = false;
+            goto cleanup;
+          }
+        }
+        if (read_bytes == 0)
+        {
+          // finish to next layer
+          for (auto iter : index_fd)
+          {
+            fd = iter.second;
+            if (close(fd) != 0)
+            {
+              ret = false;
+              LOG(ERROR) << "close file failed, errno " << errno;
+              goto cleanup;
+            }
+          }
+          if (close(result_fd) != 0) {
+            ret = false;
+            LOG(ERROR) << "result file close failed, errno " << errno;
+            goto cleanup;
+
+          }
+          result_fd = -1;
+          break;
+        }
+        sgxret = ecall_aggregation_optimized(global_eid, i, &arguments, sizeof(arguments));
+        if (sgxret != SGX_SUCCESS)
+        {
+          LOG(ERROR) << "aggregation failed";
+        }
+        sgxret = ecall_free_load_weight_context_optimized(global_eid);
+        if (sgxret != SGX_SUCCESS)
+        {
+          LOG(ERROR) << "free context failed";
+        }
+      }
+    }
+  cleanup:
+    if (!ret)
+      transmitError(response);
+    else
+    {
+      transmit_response response_msg;
+      response_msg.type = SERVER_LOAD_RESPONSE;
+      response->set_message((const char *)&response_msg, sizeof(transmit_response));
+    }
+  }
+
   void SarServiceImpl::loadWeightsOptimized(google::protobuf::RpcController *cntl_base, const loadWeightsRequest *request, SarResponse *response, google::protobuf::Closure *done)
   {
     brpc::ClosureGuard done_guard(done);
@@ -352,7 +635,9 @@ namespace sar
         std::unique_lock<std::mutex> lk(g_context_map_mutex);
         g_client_file_map.insert(std::make_pair(filename, fd));
       }
-    } else {
+    }
+    else
+    {
       auto fd_iter = g_client_file_map.find(filename);
       assert(fd_iter != g_client_file_map.end());
       fd = fd_iter->second;
@@ -367,21 +652,21 @@ namespace sar
       if (write_bytes != sizeof(uint32_t))
       {
         ret = false;
-        LOG(ERROR) << "write length to file failed, errno " << errno << " "<< filename;
+        LOG(ERROR) << "write length to file failed, errno " << errno << " " << filename;
         goto cleanup;
       }
       write_bytes = write(fd, request_msg->tag, sizeof(request_msg->tag));
       if (write_bytes != sizeof(request_msg->tag))
       {
         ret = false;
-        LOG(ERROR) << "write tag to file failed, errno" << errno<< " "<< filename;
+        LOG(ERROR) << "write tag to file failed, errno" << errno << " " << filename;
         goto cleanup;
       }
       write_bytes = write(fd, request_msg->body, request_msg->length);
       if (write_bytes != request_msg->length)
       {
         ret = false;
-        LOG(ERROR) << "write ciphertext to file failed, errno " << errno<< " "<< filename;
+        LOG(ERROR) << "write ciphertext to file failed, errno " << errno << " " << filename;
         goto cleanup;
       }
     }
