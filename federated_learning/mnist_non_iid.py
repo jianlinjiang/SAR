@@ -5,7 +5,7 @@ from tensorflow.keras.optimizers import Adam
 import tensorflow.keras as keras
 import sys, getopt
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 # 模型参数聚合函数
 # 传入参数是模型数据的列表
 def aggregation_average(model_weights):
@@ -131,6 +131,31 @@ def aggregation_sar(model_weights, n, f, r, k):
         aggregation_weights.append(model_weights[indexs[i]])
     return aggregation_median(aggregation_weights)
 
+def aggregation_sar2(model_weights, n, f, r, k):
+  if (n - 2 * f -2 <= 0):
+    print("krum condition doesn't satisfy")
+    return 
+  number = len(model_weights)
+  layerNum = len(model_weights[0])
+  distance = np.zeros((number, number))
+  for i in range(number):
+    for j in range(i+1, number):
+      d = 0
+      for l in range(layerNum):
+        d += np.linalg.norm(np.array(model_weights[i][l]) - np.array(model_weights[j][l]))
+      distance[i][j] = d
+  distance += distance.T
+  score = np.zeros((number))
+  for i in range(number):
+    d = distance[i] #第i行，代表该模型到其他模型之间到距离
+    np.sort(d) #排序
+    for j in range(1,n-f-1): #因为有一个0，到自身到距离，排除掉，选出距离最小到n-f-2个客户端到距离
+      score[i] += d[j]
+  sorted_weights = []
+  indexs = np.argsort(score)
+  for i in range(k):
+    sorted_weights.append(model_weights[indexs[i]])
+  return aggregation_median(sorted_weights)
 # 定义全局模型
 model_cnn = tf.keras.Sequential([
   tf.keras.layers.Conv2D(filters=32,activation=tf.nn.relu,kernel_size=(5,5), input_shape=(28,28,1),strides = (1,1),padding = 'same',name='Con1'),
@@ -151,30 +176,14 @@ model_init_weights = np.load("model_mnist_init_weight.npy",allow_pickle=True)
 model_cnn.set_weights(model_init_weights)
 
 #所有客户端数量
-n = 10
+n = 100
 
 #读取文件
-client_images = np.load("clients_images_mnist.npy",allow_pickle=True)
-client_labels = np.load("cleints_labels_mnist.npy",allow_pickle=True)
-
-#最后一个client为backdoor攻击者
-def class2label(label):
-    for i in range(len(label)):
-        if (label[i] == 1):
-            return i
-
-backdoor_images = []
-backdoor_labels = []
-for i in range(600):
-  num = class2label(client_labels[99][i])
-  if (num == 0):
-    #把1的标签改成5
-    backdoor_images.append(client_images[99][i])
-    client_labels[99][i][:]=0
-    client_labels[99][i][4]=1
-    backdoor_labels.append(client_labels[99][i])
-backdoor_images = np.array(backdoor_images)
-backdoor_labels = np.array(backdoor_labels)
+client_images_non = np.load("clients_images_mnist_noniid.npy",allow_pickle=True)
+client_labels = np.load("clients_labels_mnist_noniid.npy",allow_pickle=True)
+client_images = []
+for i in range(n):
+  client_images.append(keras.backend.expand_dims(client_images_non[i], axis=-1))
 test_images = np.load("test_images_mnist.npy", allow_pickle=True)
 test_labels = np.load("test_images_label.npy", allow_pickle=True)
 
@@ -193,21 +202,12 @@ def training(model, data, label, weights, bz):
   model.fit(data, label, epochs=1, verbose=0, batch_size=bz)
   weights.append(model.get_weights())
 
-def back_training(model, data, label, weights, bz):
-  model.fit(data, label, epochs=20, verbose=1, batch_size=bz)
-  weights.append(model.get_weights())
-
-def fl_backdoor_attacker(round, gf, aggregation_method, m, r, k, model):
+def federate_learning_without_attacker(gf, round, aggregation_method, m, r, k, model):
   model_accuracy_array = []
   model_error_array = []
-  backdoor_accuracy_array = []
-  backdoor_error_array = []
   tmp_weight = model.get_weights()
-  acc_filename = "result_data/backdoor/acc_"+aggregation_method
-  err_filename = "result_data/backdoor/err_"+aggregation_method
-  backdoor_acc_filename = "result_data/backdoor/backdoor_acc_"+aggregation_method
-  backdoor_err_filename = "result_data/backdoor/backdoor_err_"+aggregation_method
-
+  acc_filename = "result_data/no_attacker/noniidacc_"+aggregation_method
+  err_filename = "result_data/no_attacker/noniiderr_"+aggregation_method
   if (aggregation_method == "trimed_mean"):
     acc_filename += "_beta:"+str(gf)
     err_filename += "_beta:"+str(gf)
@@ -219,14 +219,9 @@ def fl_backdoor_attacker(round, gf, aggregation_method, m, r, k, model):
     err_filename += "_r:"+str(r)+"_k:"+str(k)
   for r in range(round):
     model_weights = []
-    for i in range(n-1):
+    for i in range(n):
       model.set_weights(tmp_weight)
       training(model, client_images[i], client_labels[i], model_weights, batch_size)
-    
-    back_training(model, client_images[99], client_labels[99], model_weights, batch_size)
-    #byzantine 攻击者上传的模型，合谋的情况下即上传最大的值即可
-    # for i in range(gf):
-    #   model_weights.append(byzantine_weight)
     if (aggregation_method == "average"):
       tmp_weight = aggregation_average(model_weights)
     elif (aggregation_method == "median"):
@@ -236,20 +231,13 @@ def fl_backdoor_attacker(round, gf, aggregation_method, m, r, k, model):
     elif (aggregation_method == "krum"):
       tmp_weight = aggregation_krum(model_weights, n, gf, m)
     elif (aggregation_method == "sar"):
-      tmp_weight = aggregation_sar(model_weights, n, gf, r, k)
+      tmp_weight = aggregation_sar2(model_weights, n, gf, r, k)
     model.set_weights(tmp_weight)
     test_error,test_acc = model.evaluate(test_images,test_labels)
-    backdoor_test_error, backdoor_test_acc = model.evaluate(backdoor_images, backdoor_labels)
     model_accuracy_array.append(test_acc)
     model_error_array.append(test_error)
-
-    backdoor_accuracy_array.append(backdoor_test_acc)
-    backdoor_error_array.append(backdoor_test_error)
   np.save(acc_filename, model_accuracy_array)
   np.save(err_filename, model_error_array)
-  
-  np.save(backdoor_acc_filename, backdoor_accuracy_array)
-  np.save(backdoor_err_filename, backdoor_error_array)
 #参数 
 #第一个参数 f 代表 恶意的人数
 #第二个参数 collude 代表是否合谋，合谋即攻击者模型参数为很大的值，否则为各自随机产生的噪声
@@ -281,8 +269,9 @@ def main(argv):
       r = arg
     elif opt in ("-k"): #最后平均数的数量
       k = arg
-
-  fl_backdoor_attacker(round, gf, method, int(m), int(float(r)* total_parameters), int(k), model_cnn)
+  gf = int(f)
+  federate_learning_without_attacker(gf, round, method, int(m), int(float(r)* total_parameters), int(k), model_cnn)
+  #如果合谋，则最后20个客户端的模型参数全部改为非常大的值在原模型
 
 if __name__ == "__main__":
   main(sys.argv[1:])

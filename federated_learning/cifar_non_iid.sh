@@ -1,0 +1,1 @@
+python cifar_non_iid.py -f 20 -c yes -a sar -m 1 -k 80 -r 0.1 

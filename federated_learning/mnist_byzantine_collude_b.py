@@ -5,7 +5,7 @@ from tensorflow.keras.optimizers import Adam
 import tensorflow.keras as keras
 import sys, getopt
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 # 模型参数聚合函数
 # 传入参数是模型数据的列表
 def aggregation_average(model_weights):
@@ -151,30 +151,12 @@ model_init_weights = np.load("model_mnist_init_weight.npy",allow_pickle=True)
 model_cnn.set_weights(model_init_weights)
 
 #所有客户端数量
-n = 10
+n = 100
 
 #读取文件
 client_images = np.load("clients_images_mnist.npy",allow_pickle=True)
 client_labels = np.load("cleints_labels_mnist.npy",allow_pickle=True)
 
-#最后一个client为backdoor攻击者
-def class2label(label):
-    for i in range(len(label)):
-        if (label[i] == 1):
-            return i
-
-backdoor_images = []
-backdoor_labels = []
-for i in range(600):
-  num = class2label(client_labels[99][i])
-  if (num == 0):
-    #把1的标签改成5
-    backdoor_images.append(client_images[99][i])
-    client_labels[99][i][:]=0
-    client_labels[99][i][4]=1
-    backdoor_labels.append(client_labels[99][i])
-backdoor_images = np.array(backdoor_images)
-backdoor_labels = np.array(backdoor_labels)
 test_images = np.load("test_images_mnist.npy", allow_pickle=True)
 test_labels = np.load("test_images_label.npy", allow_pickle=True)
 
@@ -189,25 +171,23 @@ for layer in model_init_weights:
   flatten_weights.extend(layer.flatten())
 total_parameters = len(flatten_weights)
 
+
 def training(model, data, label, weights, bz):
   model.fit(data, label, epochs=1, verbose=0, batch_size=bz)
   weights.append(model.get_weights())
 
-def back_training(model, data, label, weights, bz):
-  model.fit(data, label, epochs=20, verbose=1, batch_size=bz)
-  weights.append(model.get_weights())
-
-def fl_backdoor_attacker(round, gf, aggregation_method, m, r, k, model):
+def fl_collude_byzantine_attacker(round, gf, aggregation_method, m, r, k, model):
   model_accuracy_array = []
   model_error_array = []
-  backdoor_accuracy_array = []
-  backdoor_error_array = []
   tmp_weight = model.get_weights()
-  acc_filename = "result_data/backdoor/acc_"+aggregation_method
-  err_filename = "result_data/backdoor/err_"+aggregation_method
-  backdoor_acc_filename = "result_data/backdoor/backdoor_acc_"+aggregation_method
-  backdoor_err_filename = "result_data/backdoor/backdoor_err_"+aggregation_method
-
+  acc_filename = "result_data/byzantine_attacker_collude/acc_"+aggregation_method
+  err_filename = "result_data/byzantine_attacker_collude/err_"+aggregation_method
+  byzantine_weight = []
+  for layer in tmp_weight:
+    shape = layer.shape
+    flattened = layer.flatten()
+    flattened[:] = 10000
+    byzantine_weight.append(flattened.reshape(shape))
   if (aggregation_method == "trimed_mean"):
     acc_filename += "_beta:"+str(gf)
     err_filename += "_beta:"+str(gf)
@@ -215,18 +195,26 @@ def fl_backdoor_attacker(round, gf, aggregation_method, m, r, k, model):
     acc_filename += "_m:"+str(m)
     err_filename += "_m:"+str(m)
   if (aggregation_method == "sar"):
-    acc_filename += "_r:"+str(r)+"_k:"+str(k)
-    err_filename += "_r:"+str(r)+"_k:"+str(k)
+    acc_filename += "_r:"+str(r)+"_k:"+str(k)+"b=df=40"
+    err_filename += "_r:"+str(r)+"_k:"+str(k)+"b=df=40"
   for r in range(round):
     model_weights = []
-    for i in range(n-1):
+    for i in range(n-gf):
       model.set_weights(tmp_weight)
       training(model, client_images[i], client_labels[i], model_weights, batch_size)
-    
-    back_training(model, client_images[99], client_labels[99], model_weights, batch_size)
     #byzantine 攻击者上传的模型，合谋的情况下即上传最大的值即可
-    # for i in range(gf):
-    #   model_weights.append(byzantine_weight)
+    # byzantine_weight = tmp_weight
+    # i = 0
+    # for layer in byzantine_weight:
+    #   shape = layer.shape
+    #   flattened = layer.flatten()
+    #   size = (int)(len(flattened)/2)
+    #   flattened[0:size] = 10000
+    #   byzantine_weight[i] = flattened.reshape(shape)
+    #   i=i+1
+    # byzantine_weight[7][0] = 10000
+    for i in range(gf):
+      model_weights.append(byzantine_weight)
     if (aggregation_method == "average"):
       tmp_weight = aggregation_average(model_weights)
     elif (aggregation_method == "median"):
@@ -239,17 +227,10 @@ def fl_backdoor_attacker(round, gf, aggregation_method, m, r, k, model):
       tmp_weight = aggregation_sar(model_weights, n, gf, r, k)
     model.set_weights(tmp_weight)
     test_error,test_acc = model.evaluate(test_images,test_labels)
-    backdoor_test_error, backdoor_test_acc = model.evaluate(backdoor_images, backdoor_labels)
     model_accuracy_array.append(test_acc)
     model_error_array.append(test_error)
-
-    backdoor_accuracy_array.append(backdoor_test_acc)
-    backdoor_error_array.append(backdoor_test_error)
   np.save(acc_filename, model_accuracy_array)
   np.save(err_filename, model_error_array)
-  
-  np.save(backdoor_acc_filename, backdoor_accuracy_array)
-  np.save(backdoor_err_filename, backdoor_error_array)
 #参数 
 #第一个参数 f 代表 恶意的人数
 #第二个参数 collude 代表是否合谋，合谋即攻击者模型参数为很大的值，否则为各自随机产生的噪声
@@ -282,7 +263,9 @@ def main(argv):
     elif opt in ("-k"): #最后平均数的数量
       k = arg
 
-  fl_backdoor_attacker(round, gf, method, int(m), int(float(r)* total_parameters), int(k), model_cnn)
+  gf = int(f)
+  #合谋的情况下，后20个客户端为恶意的，上传的参数为非常大的值
+  fl_collude_byzantine_attacker(round, gf, method, int(m), int(float(r)* total_parameters), int(k), model_cnn)
 
 if __name__ == "__main__":
   main(sys.argv[1:])
